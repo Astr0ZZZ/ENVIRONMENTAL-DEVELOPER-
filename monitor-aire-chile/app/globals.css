@@ -1,0 +1,134 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ica-bueno: #00E5A3;           /* Verde Menta Suave */
+  --ica-regular: #FFD300;         /* Amarillo Cálido / Miel */
+  --ica-alerta: #FF7A00;          /* Naranja Vibrante */
+  --ica-preemergencia: #FF2E54;   /* Rojo Carmín / Rosa Oscuro */
+  --ica-emergencia: #A32CC4;      /* Púrpura / Magenta Real */
+  --ica-sindatos: #64748b;        /* Slate / Sin datos */
+}
+
+@layer base {
+  body {
+    @apply bg-[#f5f2eb] text-[#2d2a24] dark:bg-slate-950 dark:text-slate-50;
+    font-family: var(--font-plus-jakarta), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  }
+}
+
+/* Estilo premium difuminado para plumas de viento a nivel de detalle */
+.leaflet-glow-halo-plume {
+  filter: blur(20px);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.dark .leaflet-glow-halo-plume {
+  mix-blend-mode: plus-lighter;
+}
+
+/* Estilo premium difuminado para halos ambientales a nivel general */
+.leaflet-glow-halo-ambient {
+  filter: blur(52px);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.dark .leaflet-glow-halo-ambient {
+  mix-blend-mode: plus-lighter;
+}
+
+/* Animación de pulso glowing para estaciones en Alerta o superior */
+@keyframes pulse-glow {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.25;
+    filter: blur(2px);
+  }
+  50% {
+    transform: scale(1.45);
+    opacity: 0.85;
+    filter: blur(4px);
+  }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Overrides de Leaflet Premium para estilo oscuro/claro y glassmorphic */
+.leaflet-bar {
+  border: 1px solid #d4cebe !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+  box-shadow: 0 10px 25px -5px rgba(45, 42, 36, 0.15) !important;
+  transition: all 0.3s ease;
+}
+.dark .leaflet-bar {
+  border: 1px solid rgba(51, 65, 85, 0.7) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+}
+
+.leaflet-bar a {
+  background-color: rgba(255, 255, 255, 0.85) !important;
+  color: #2d2a24 !important;
+  border-bottom: 1px solid #e4dec9 !important;
+  transition: all 0.2s ease;
+}
+.dark .leaflet-bar a {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+  color: #f1f5f9 !important;
+  border-bottom: 1px solid rgba(51, 65, 85, 0.4) !important;
+}
+
+.leaflet-bar a:hover {
+  background-color: rgba(244, 239, 226, 0.95) !important;
+  color: var(--ica-bueno) !important;
+}
+.dark .leaflet-bar a:hover {
+  background-color: rgba(30, 41, 59, 0.95) !important;
+  color: var(--ica-bueno) !important;
+}
+
+.leaflet-bar a.leaflet-disabled {
+  background-color: rgba(255, 255, 255, 0.45) !important;
+  color: #a8a29e !important;
+}
+.dark .leaflet-bar a.leaflet-disabled {
+  background-color: rgba(15, 23, 42, 0.45) !important;
+  color: #64748b !important;
+}
+
+.leaflet-popup-content-wrapper {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  color: #2d2a24 !important;
+  border: 1px solid #d4cebe !important;
+  border-radius: 16px !important;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 25px 50px -12px rgba(45, 42, 36, 0.2) !important;
+  transition: all 0.3s ease;
+}
+.dark .leaflet-popup-content-wrapper {
+  background-color: rgba(15, 23, 42, 0.95) !important;
+  color: #f1f5f9 !important;
+  border: 1px solid rgba(51, 65, 85, 0.75) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65) !important;
+}
+
+.leaflet-popup-tip {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid #d4cebe !important;
+}
+.dark .leaflet-popup-tip {
+  background-color: rgba(15, 23, 42, 0.95) !important;
+  border: 1px solid rgba(51, 65, 85, 0.75) !important;
+}
+
+/* Reseteo del fondo de DivIcon de Leaflet */
+.leaflet-div-icon.custom-station-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
+
