@@ -227,7 +227,7 @@ export function AirMap({
         minZoom={3}
         maxBounds={[[-85, -180], [85, 180]]}
         maxBoundsViscosity={1.0}
-        scrollWheelZoom
+        scrollWheelZoom={false}
         zoomControl={false}
         className="h-full w-full z-0 bg-[#faf8f2] dark:bg-[#0f172a]"
       >
