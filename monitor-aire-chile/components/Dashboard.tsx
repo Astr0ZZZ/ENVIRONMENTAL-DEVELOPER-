@@ -3,14 +3,15 @@
 import { useState, useMemo, useEffect } from 'react'
 import { AirMapWrapper } from '@/components/AirMapWrapper'
 import { RegionTable } from '@/components/RegionTable'
+import { RegionReport } from '@/components/RegionReport'
 import { StationPanel } from '@/components/StationPanel'
 import type { Station } from '@/types/openaq'
-import { 
-  getICACategory, 
-  COLOR_BUENO, 
-  COLOR_REGULAR, 
-  COLOR_ALERTA, 
-  COLOR_PREEMERGENCIA, 
+import {
+  getICACategory,
+  COLOR_BUENO,
+  COLOR_REGULAR,
+  COLOR_ALERTA,
+  COLOR_PREEMERGENCIA,
   COLOR_EMERGENCIA,
   COLOR_SINDATOS,
   getWorstICACategory
@@ -40,9 +41,9 @@ function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2)
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLon / 2) *
+    Math.sin(dLon / 2)
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
   return R * c
 }
@@ -54,18 +55,19 @@ export function Dashboard({ stations }: DashboardProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedStation, setSelectedStation] = useState<Station | null>(null)
   const [activePollutant, setActivePollutant] = useState<'pm25' | 'pm10' | 'so2' | 'no2' | 'o3' | 'co' | 'all'>('pm25')
-  
+  const [showReport, setShowReport] = useState(false)
+
   // Guided tour state
   const [tourStep, setTourStep] = useState<number | null>(null)
   const [tourCoords, setTourCoords] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
 
   // Structured search system
   const [searchMode, setSearchMode] = useState<'station' | 'commune' | 'address' | 'region'>('station')
-  
+
   // Minimization states for pollutant and search panels
   const [isMinimizedPollutant, setIsMinimizedPollutant] = useState(false)
   const [isMinimizedSearchPanel, setIsMinimizedSearchPanel] = useState(false)
-  
+
   // Autocomplete / Suggestions
   const [communeQuery, setCommuneQuery] = useState('')
   const [communeSuggestions, setCommuneSuggestions] = useState<any[]>([])
@@ -152,7 +154,7 @@ export function Dashboard({ stations }: DashboardProps) {
     // Scroll only on initial load of the step
     updatePosition(true)
     const t = setTimeout(() => updatePosition(false), 150)
-    
+
     const handleUpdate = () => updatePosition(false)
     window.addEventListener('resize', handleUpdate)
     window.addEventListener('scroll', handleUpdate)
@@ -241,7 +243,7 @@ export function Dashboard({ stations }: DashboardProps) {
     const lat = parseFloat(item.lat)
     const lng = parseFloat(item.lon)
     setSearchCoords({ lat, lng })
-    
+
     if (searchMode === 'commune') {
       setCommuneQuery(item.display_name.split(',')[0])
       setCommuneSuggestions([])
@@ -349,7 +351,7 @@ export function Dashboard({ stations }: DashboardProps) {
       const ica = isAll
         ? getWorstICACategory(s)
         : (hasVal ? getICACategory(val as number, activePollutant as any) : null)
-      
+
       let matchesIca = true
       if (activeIcaFilter) {
         if (activeIcaFilter === 'Sin Datos') {
@@ -457,8 +459,8 @@ export function Dashboard({ stations }: DashboardProps) {
   const searchSuggestions = useMemo(() => {
     const q = normalizeSearch(searchQuery)
 
-    const matching = q === '' 
-      ? stations 
+    const matching = q === ''
+      ? stations
       : stations.filter((s) => normalizeSearch(s.nombre).includes(q))
 
     const map = new Map<string, Station[]>()
@@ -578,11 +580,10 @@ export function Dashboard({ stations }: DashboardProps) {
                       key={p.key}
                       type="button"
                       onClick={() => setActivePollutant(p.key as any)}
-                      className={`flex flex-1 flex-col items-start rounded-lg px-4 py-2 text-left transition-all duration-300 sm:flex-initial sm:min-w-[140px] border ${
-                        isActive
-                          ? 'bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 dark:border-emerald-500/35 shadow-[0_0_15px_rgba(16,185,129,0.08)] font-bold'
-                          : 'text-[#6e685e] dark:text-slate-400 hover:text-[#2d2a24] dark:hover:text-slate-200 border-transparent hover:bg-[#e4dec9]/50 dark:hover:bg-slate-800/40'
-                      }`}
+                      className={`flex flex-1 flex-col items-start rounded-lg px-4 py-2 text-left transition-all duration-300 sm:flex-initial sm:min-w-[140px] border ${isActive
+                        ? 'bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 dark:border-emerald-500/35 shadow-[0_0_15px_rgba(16,185,129,0.08)] font-bold'
+                        : 'text-[#6e685e] dark:text-slate-400 hover:text-[#2d2a24] dark:hover:text-slate-200 border-transparent hover:bg-[#e4dec9]/50 dark:hover:bg-slate-800/40'
+                        }`}
                     >
                       <span className="text-sm font-black tracking-tight">{p.label}</span>
                       <span className="text-[9px] font-semibold opacity-70 mt-0.5 leading-none">{p.desc}</span>
@@ -653,11 +654,10 @@ export function Dashboard({ stations }: DashboardProps) {
                         handleClearFilters()
                         setSearchMode(tab.id as any)
                       }}
-                      className={`flex flex-col items-start rounded-lg px-4 py-2 text-left transition-all duration-300 border ${
-                        isActive
-                          ? 'bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 dark:border-emerald-500/35 shadow-sm font-bold'
-                          : 'text-[#6e685e] dark:text-slate-400 hover:text-[#2d2a24] dark:hover:text-slate-200 border-transparent hover:bg-[#e4dec9]/50 dark:hover:bg-slate-800/40'
-                      }`}
+                      className={`flex flex-col items-start rounded-lg px-4 py-2 text-left transition-all duration-300 border ${isActive
+                        ? 'bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 dark:border-emerald-500/35 shadow-sm font-bold'
+                        : 'text-[#6e685e] dark:text-slate-400 hover:text-[#2d2a24] dark:hover:text-slate-200 border-transparent hover:bg-[#e4dec9]/50 dark:hover:bg-slate-800/40'
+                        }`}
                     >
                       <span className="text-xs font-black tracking-tight">{tab.label}</span>
                       <span className="text-[9px] font-semibold opacity-70 mt-0.5 leading-none">{tab.desc}</span>
@@ -668,311 +668,311 @@ export function Dashboard({ stations }: DashboardProps) {
 
               {/* Render search input mode */}
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
-          
-          {/* Forma 1: Buscar por nombres de estaciones */}
-          {searchMode === 'station' && (
-            <div className="relative flex-1">
-              <label
-                htmlFor="search-stations"
-                className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6e685e] dark:text-slate-400"
-              >
-                Buscar Estación Específica
-              </label>
-              <div className="group relative">
-                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                  <SearchIcon className="h-4 w-4 text-[#a8a29e] dark:text-slate-500 transition-colors group-focus-within:text-emerald-600 dark:group-focus-within:text-emerald-400" />
-                </div>
-                <input
-                  id="search-stations"
-                  type="text"
-                  value={searchQuery}
-                  onFocus={() => setShowSuggestions(true)}
-                  onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Ej: Pudahuel, Temuco, Osorno..."
-                  className="w-full rounded-xl border border-[#d4cebe] dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/40 py-2.5 pl-10 pr-10 text-sm text-[#2d2a24] dark:text-slate-100 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] outline-none backdrop-blur-xl transition-all placeholder-[#a8a29e] dark:placeholder:text-slate-500 focus:border-emerald-600/55 dark:focus:border-emerald-500/50 focus:bg-white dark:focus:bg-slate-900/60"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#a8a29e] dark:text-slate-500 transition-colors hover:text-[#2d2a24]"
-                    aria-label="Limpiar búsqueda"
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
 
-              {/* Suggestions */}
-              {showSuggestions && searchSuggestions.length > 0 && (
-                <div className="absolute left-0 right-0 top-full z-[2000] mt-2 max-h-80 overflow-y-auto rounded-xl border border-[#d4cebe] dark:border-slate-800/90 bg-white/95 dark:bg-slate-950/95 p-2 shadow-2xl backdrop-blur-xl scrollbar-thin">
-                  {searchSuggestions.map((group) => (
-                    <div key={group.region} className="mb-2.5 last:mb-0">
-                      <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#6e685e] dark:text-slate-500 border-b border-[#e4dec9]/60 dark:border-slate-800/30 pb-1">
-                        {group.region}
+                {/* Forma 1: Buscar por nombres de estaciones */}
+                {searchMode === 'station' && (
+                  <div className="relative flex-1">
+                    <label
+                      htmlFor="search-stations"
+                      className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6e685e] dark:text-slate-400"
+                    >
+                      Buscar Estación Específica
+                    </label>
+                    <div className="group relative">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                        <SearchIcon className="h-4 w-4 text-[#a8a29e] dark:text-slate-500 transition-colors group-focus-within:text-emerald-600 dark:group-focus-within:text-emerald-400" />
                       </div>
-                      <div className="mt-1 space-y-0.5">
-                        {group.stations.map((s) => {
-                          const isAll = activePollutant === 'all'
-                          const val = isAll ? null : s[activePollutant]
-                          const ica = isAll
-                            ? getWorstICACategory(s)
-                            : (typeof val === 'number' && val >= 0 ? getICACategory(val as number, activePollutant as any) : null)
-                          return (
-                            <button
-                              key={s.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedStation(s)
-                                setSearchQuery(s.nombre)
-                                setShowSuggestions(false)
-                              }}
-                              className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs text-[#4a453c] dark:text-slate-300 transition-colors hover:bg-[#faf6eb] dark:hover:bg-slate-900/60"
-                            >
-                              <span className="font-medium">{s.nombre}</span>
-                              {ica ? (
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] font-bold" style={{ color: ica.color }}>
-                                    {isAll ? ica.categoria : (activePollutant === 'co' ? `${((val as number) / 1000).toFixed(1)} mg/m³` : `${Math.round(val as number)} µg/m³`)}
-                                  </span>
-                                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: ica.color }} />
-                                </div>
-                              ) : (
-                                <span className="text-[10px] text-slate-400 font-semibold">Sin datos</span>
-                              )}
-                            </button>
-                          )
-                        })}
+                      <input
+                        id="search-stations"
+                        type="text"
+                        value={searchQuery}
+                        onFocus={() => setShowSuggestions(true)}
+                        onBlur={() => setTimeout(() => setShowSuggestions(false), 250)}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Ej: Pudahuel, Temuco, Osorno..."
+                        className="w-full rounded-xl border border-[#d4cebe] dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/40 py-2.5 pl-10 pr-10 text-sm text-[#2d2a24] dark:text-slate-100 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] outline-none backdrop-blur-xl transition-all placeholder-[#a8a29e] dark:placeholder:text-slate-500 focus:border-emerald-600/55 dark:focus:border-emerald-500/50 focus:bg-white dark:focus:bg-slate-900/60"
+                      />
+                      {searchQuery && (
+                        <button
+                          onClick={() => setSearchQuery('')}
+                          className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#a8a29e] dark:text-slate-500 transition-colors hover:text-[#2d2a24]"
+                          aria-label="Limpiar búsqueda"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Suggestions */}
+                    {showSuggestions && searchSuggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full z-[2000] mt-2 max-h-80 overflow-y-auto rounded-xl border border-[#d4cebe] dark:border-slate-800/90 bg-white/95 dark:bg-slate-950/95 p-2 shadow-2xl backdrop-blur-xl scrollbar-thin">
+                        {searchSuggestions.map((group) => (
+                          <div key={group.region} className="mb-2.5 last:mb-0">
+                            <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#6e685e] dark:text-slate-500 border-b border-[#e4dec9]/60 dark:border-slate-800/30 pb-1">
+                              {group.region}
+                            </div>
+                            <div className="mt-1 space-y-0.5">
+                              {group.stations.map((s) => {
+                                const isAll = activePollutant === 'all'
+                                const val = isAll ? null : s[activePollutant]
+                                const ica = isAll
+                                  ? getWorstICACategory(s)
+                                  : (typeof val === 'number' && val >= 0 ? getICACategory(val as number, activePollutant as any) : null)
+                                return (
+                                  <button
+                                    key={s.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedStation(s)
+                                      setSearchQuery(s.nombre)
+                                      setShowSuggestions(false)
+                                    }}
+                                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs text-[#4a453c] dark:text-slate-300 transition-colors hover:bg-[#faf6eb] dark:hover:bg-slate-900/60"
+                                  >
+                                    <span className="font-medium">{s.nombre}</span>
+                                    {ica ? (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-bold" style={{ color: ica.color }}>
+                                          {isAll ? ica.categoria : (activePollutant === 'co' ? `${((val as number) / 1000).toFixed(1)} mg/m³` : `${Math.round(val as number)} µg/m³`)}
+                                        </span>
+                                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: ica.color }} />
+                                      </div>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400 font-semibold">Sin datos</span>
+                                    )}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Forma 2: Buscar por Comuna (cualquiera de Chile, calcula más cercanas) */}
+                {searchMode === 'commune' && (
+                  <div className="relative flex-1">
+                    <label
+                      htmlFor="search-communes"
+                      className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6e685e] dark:text-slate-400"
+                    >
+                      Ingresa cualquier Comuna de Chile
+                    </label>
+                    <form onSubmit={handleCommuneSubmit} className="group relative flex gap-2">
+                      <div className="relative flex-1">
+                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                          <svg className="h-4 w-4 text-[#a8a29e] dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          </svg>
+                        </div>
+                        <input
+                          id="search-communes"
+                          type="text"
+                          value={communeQuery}
+                          disabled={isSearchingCommune}
+                          onFocus={() => { setShowSuggestions(true); setSelectedFromAutocomplete(false) }}
+                          onChange={(e) => { setCommuneQuery(e.target.value); setSelectedFromAutocomplete(false) }}
+                          placeholder="Ej: Las Condes, Temuco, Valdivia, Valparaíso..."
+                          className="w-full rounded-xl border border-[#d4cebe] dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/40 py-2.5 pl-10 pr-10 text-sm text-[#2d2a24] dark:text-slate-100 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] outline-none backdrop-blur-xl transition-all placeholder-[#a8a29e] dark:placeholder:text-slate-500 focus:border-emerald-600/55 dark:focus:border-emerald-500/50 focus:bg-white dark:focus:bg-slate-900/60 disabled:opacity-60"
+                        />
+                        {communeQuery && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCommuneQuery('')
+                              setSearchCoords(null)
+                              setCommuneError(null)
+                            }}
+                            className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#a8a29e]"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={isSearchingCommune || !communeQuery.trim()}
+                        className="rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:scale-[1.02] flex items-center gap-1.5"
+                      >
+                        {isSearchingCommune ? 'Buscando...' : 'Buscar'}
+                      </button>
+                    </form>
+
+                    {/* Commune Autocomplete suggestions dropdown */}
+                    {showSuggestions && communeSuggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full z-[2000] mt-2 max-h-60 overflow-y-auto rounded-xl border border-[#d4cebe] dark:border-slate-800/90 bg-white/95 dark:bg-slate-950/95 p-2 shadow-2xl backdrop-blur-xl">
+                        {communeSuggestions.map((item, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => selectAddressSuggestion(item)}
+                            className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-[#4a453c] dark:text-slate-300 hover:bg-[#faf6eb] dark:hover:bg-slate-900/60 transition-colors"
+                          >
+                            📍 {item.display_name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {communeError && (
+                      <p className="absolute left-0 mt-1 text-[11px] text-red-500 font-semibold">{communeError}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Forma 3: Búsqueda por Dirección Específica (con pre-rellenado autocomplete) */}
+                {searchMode === 'address' && (
+                  <div className="relative flex-1">
+                    <label
+                      htmlFor="search-address"
+                      className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6e685e] dark:text-slate-400"
+                    >
+                      Dirección Específica (Calle, número y comuna)
+                    </label>
+                    <form onSubmit={handleAddressSubmit} className="group relative flex gap-2">
+                      <div className="relative flex-1">
+                        <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+                          <svg className="h-4 w-4 text-[#a8a29e] dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </div>
+                        <input
+                          id="search-address"
+                          type="text"
+                          value={addressQuery}
+                          disabled={isSearchingAddress}
+                          onFocus={() => { setShowSuggestions(true); setSelectedFromAutocomplete(false) }}
+                          onChange={(e) => { setAddressQuery(e.target.value); setSelectedFromAutocomplete(false) }}
+                          placeholder="Ej: Alameda 130, Santiago o Prat 500, Temuco..."
+                          className="w-full rounded-xl border border-[#d4cebe] dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/40 py-2.5 pl-10 pr-10 text-sm text-[#2d2a24] dark:text-slate-100 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] outline-none backdrop-blur-xl transition-all placeholder-[#a8a29e] dark:placeholder:text-slate-500 focus:border-emerald-600/55 dark:focus:border-emerald-500/50 focus:bg-white dark:focus:bg-slate-900/60 disabled:opacity-60"
+                        />
+                        {addressQuery && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAddressQuery('')
+                              setSearchCoords(null)
+                              setAddressError(null)
+                            }}
+                            className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#a8a29e]"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={isSearchingAddress || !addressQuery.trim()}
+                        className="rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:scale-[1.02] flex items-center gap-1.5 whitespace-nowrap"
+                      >
+                        {isSearchingAddress ? 'Buscando...' : 'Buscar'}
+                      </button>
+                    </form>
+
+                    {/* Address suggestions list (pre-rellenado) */}
+                    {showSuggestions && addressSuggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full z-[2000] mt-2 max-h-60 overflow-y-auto rounded-xl border border-[#d4cebe] dark:border-slate-800/90 bg-white/95 dark:bg-slate-950/95 p-2 shadow-2xl backdrop-blur-xl">
+                        {addressSuggestions.map((item, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => selectAddressSuggestion(item)}
+                            className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-[#4a453c] dark:text-slate-300 hover:bg-[#faf6eb] dark:hover:bg-slate-900/60 transition-colors"
+                          >
+                            📍 {item.display_name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {addressError && (
+                      <p className="absolute left-0 mt-1 text-[11px] text-red-500 font-semibold">{addressError}</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Forma 4: Selector de región + Comuna de la base de datos */}
+                {searchMode === 'region' && (
+                  <>
+                    {/* Selector de región */}
+                    <div className="sm:w-64">
+                      <label
+                        htmlFor="region-filter"
+                        className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6e685e] dark:text-slate-400"
+                      >
+                        Filtrar por Región
+                      </label>
+                      <div className="relative">
+                        <select
+                          id="region-filter"
+                          value={selectedRegion}
+                          onChange={(e) => {
+                            setSelectedRegion(e.target.value)
+                            setSelectedLocality('Todas')
+                          }}
+                          className="w-full appearance-none rounded-xl border border-[#d4cebe] dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/40 px-4 py-2.5 pr-10 text-sm text-[#2d2a24] dark:text-slate-100 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] outline-none backdrop-blur-xl transition-all focus:border-emerald-600/55 dark:focus:border-emerald-500/50 focus:bg-white dark:focus:bg-slate-900/60"
+                        >
+                          {regions.map((r) => (
+                            <option key={r} value={r} className="bg-white text-slate-900 dark:bg-slate-955 dark:text-slate-100">
+                              {r}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#6e685e] dark:text-slate-400">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
 
-          {/* Forma 2: Buscar por Comuna (cualquiera de Chile, calcula más cercanas) */}
-          {searchMode === 'commune' && (
-            <div className="relative flex-1">
-              <label
-                htmlFor="search-communes"
-                className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6e685e] dark:text-slate-400"
-              >
-                Ingresa cualquier Comuna de Chile
-              </label>
-              <form onSubmit={handleCommuneSubmit} className="group relative flex gap-2">
-                <div className="relative flex-1">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                    <svg className="h-4 w-4 text-[#a8a29e] dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                  </div>
-                  <input
-                    id="search-communes"
-                    type="text"
-                    value={communeQuery}
-                    disabled={isSearchingCommune}
-                    onFocus={() => { setShowSuggestions(true); setSelectedFromAutocomplete(false) }}
-                    onChange={(e) => { setCommuneQuery(e.target.value); setSelectedFromAutocomplete(false) }}
-                    placeholder="Ej: Las Condes, Temuco, Valdivia, Valparaíso..."
-                    className="w-full rounded-xl border border-[#d4cebe] dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/40 py-2.5 pl-10 pr-10 text-sm text-[#2d2a24] dark:text-slate-100 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] outline-none backdrop-blur-xl transition-all placeholder-[#a8a29e] dark:placeholder:text-slate-500 focus:border-emerald-600/55 dark:focus:border-emerald-500/50 focus:bg-white dark:focus:bg-slate-900/60 disabled:opacity-60"
-                  />
-                  {communeQuery && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCommuneQuery('')
-                        setSearchCoords(null)
-                        setCommuneError(null)
-                      }}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#a8a29e]"
-                    >
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-                <button
-                  type="submit"
-                  disabled={isSearchingCommune || !communeQuery.trim()}
-                  className="rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:scale-[1.02] flex items-center gap-1.5"
-                >
-                  {isSearchingCommune ? 'Buscando...' : 'Buscar'}
-                </button>
-              </form>
+                    {/* Selector de comuna / localidad */}
+                    <div className="sm:w-64">
+                      <label
+                        htmlFor="locality-filter"
+                        className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6e685e] dark:text-slate-400"
+                      >
+                        Comuna / Localidad
+                      </label>
+                      <div className="relative">
+                        <select
+                          id="locality-filter"
+                          value={selectedLocality}
+                          onChange={(e) => setSelectedLocality(e.target.value)}
+                          disabled={selectedRegion === 'Todas'}
+                          className="w-full appearance-none rounded-xl border border-[#d4cebe] dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/40 px-4 py-2.5 pr-10 text-sm text-[#2d2a24] dark:text-slate-100 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] outline-none backdrop-blur-xl transition-all focus:border-emerald-600/55 dark:focus:border-emerald-500/50 focus:bg-white dark:focus:bg-slate-900/60 disabled:opacity-50"
+                        >
+                          {selectedRegion === 'Todas' ? (
+                            <option value="Todas" className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">Seleccione una Región primero</option>
+                          ) : (
+                            localities.map((loc) => (
+                              <option key={loc} value={loc} className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+                                {loc === 'Todas' ? 'Todas las comunas' : loc}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#6e685e] dark:text-slate-400">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
 
-              {/* Commune Autocomplete suggestions dropdown */}
-              {showSuggestions && communeSuggestions.length > 0 && (
-                <div className="absolute left-0 right-0 top-full z-[2000] mt-2 max-h-60 overflow-y-auto rounded-xl border border-[#d4cebe] dark:border-slate-800/90 bg-white/95 dark:bg-slate-950/95 p-2 shadow-2xl backdrop-blur-xl">
-                  {communeSuggestions.map((item, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => selectAddressSuggestion(item)}
-                      className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-[#4a453c] dark:text-slate-300 hover:bg-[#faf6eb] dark:hover:bg-slate-900/60 transition-colors"
-                    >
-                      📍 {item.display_name}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {communeError && (
-                <p className="absolute left-0 mt-1 text-[11px] text-red-500 font-semibold">{communeError}</p>
-              )}
-            </div>
-          )}
-
-          {/* Forma 3: Búsqueda por Dirección Específica (con pre-rellenado autocomplete) */}
-          {searchMode === 'address' && (
-            <div className="relative flex-1">
-              <label
-                htmlFor="search-address"
-                className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6e685e] dark:text-slate-400"
-              >
-                Dirección Específica (Calle, número y comuna)
-              </label>
-              <form onSubmit={handleAddressSubmit} className="group relative flex gap-2">
-                <div className="relative flex-1">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-                    <svg className="h-4 w-4 text-[#a8a29e] dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </div>
-                  <input
-                    id="search-address"
-                    type="text"
-                    value={addressQuery}
-                    disabled={isSearchingAddress}
-                    onFocus={() => { setShowSuggestions(true); setSelectedFromAutocomplete(false) }}
-                    onChange={(e) => { setAddressQuery(e.target.value); setSelectedFromAutocomplete(false) }}
-                    placeholder="Ej: Alameda 130, Santiago o Prat 500, Temuco..."
-                    className="w-full rounded-xl border border-[#d4cebe] dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/40 py-2.5 pl-10 pr-10 text-sm text-[#2d2a24] dark:text-slate-100 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] outline-none backdrop-blur-xl transition-all placeholder-[#a8a29e] dark:placeholder:text-slate-500 focus:border-emerald-600/55 dark:focus:border-emerald-500/50 focus:bg-white dark:focus:bg-slate-900/60 disabled:opacity-60"
-                  />
-                  {addressQuery && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAddressQuery('')
-                        setSearchCoords(null)
-                        setAddressError(null)
-                      }}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#a8a29e]"
-                    >
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-                <button
-                  type="submit"
-                  disabled={isSearchingAddress || !addressQuery.trim()}
-                  className="rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:scale-[1.02] flex items-center gap-1.5 whitespace-nowrap"
-                >
-                  {isSearchingAddress ? 'Buscando...' : 'Buscar'}
-                </button>
-              </form>
-
-              {/* Address suggestions list (pre-rellenado) */}
-              {showSuggestions && addressSuggestions.length > 0 && (
-                <div className="absolute left-0 right-0 top-full z-[2000] mt-2 max-h-60 overflow-y-auto rounded-xl border border-[#d4cebe] dark:border-slate-800/90 bg-white/95 dark:bg-slate-950/95 p-2 shadow-2xl backdrop-blur-xl">
-                  {addressSuggestions.map((item, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => selectAddressSuggestion(item)}
-                      className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-[#4a453c] dark:text-slate-300 hover:bg-[#faf6eb] dark:hover:bg-slate-900/60 transition-colors"
-                    >
-                      📍 {item.display_name}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {addressError && (
-                <p className="absolute left-0 mt-1 text-[11px] text-red-500 font-semibold">{addressError}</p>
-              )}
-            </div>
-          )}
-
-          {/* Forma 4: Selector de región + Comuna de la base de datos */}
-          {searchMode === 'region' && (
-            <>
-              {/* Selector de región */}
-              <div className="sm:w-64">
-                <label
-                  htmlFor="region-filter"
-                  className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6e685e] dark:text-slate-400"
-                >
-                  Filtrar por Región
-                </label>
-                <div className="relative">
-                  <select
-                    id="region-filter"
-                    value={selectedRegion}
-                    onChange={(e) => {
-                      setSelectedRegion(e.target.value)
-                      setSelectedLocality('Todas')
-                    }}
-                    className="w-full appearance-none rounded-xl border border-[#d4cebe] dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/40 px-4 py-2.5 pr-10 text-sm text-[#2d2a24] dark:text-slate-100 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] outline-none backdrop-blur-xl transition-all focus:border-emerald-600/55 dark:focus:border-emerald-500/50 focus:bg-white dark:focus:bg-slate-900/60"
-                  >
-                    {regions.map((r) => (
-                      <option key={r} value={r} className="bg-white text-slate-900 dark:bg-slate-955 dark:text-slate-100">
-                        {r}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#6e685e] dark:text-slate-400">
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
               </div>
-
-              {/* Selector de comuna / localidad */}
-              <div className="sm:w-64">
-                <label
-                  htmlFor="locality-filter"
-                  className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6e685e] dark:text-slate-400"
-                >
-                  Comuna / Localidad
-                </label>
-                <div className="relative">
-                  <select
-                    id="locality-filter"
-                    value={selectedLocality}
-                    onChange={(e) => setSelectedLocality(e.target.value)}
-                    disabled={selectedRegion === 'Todas'}
-                    className="w-full appearance-none rounded-xl border border-[#d4cebe] dark:border-slate-700/60 bg-white/80 dark:bg-slate-900/40 px-4 py-2.5 pr-10 text-sm text-[#2d2a24] dark:text-slate-100 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.05)] outline-none backdrop-blur-xl transition-all focus:border-emerald-600/55 dark:focus:border-emerald-500/50 focus:bg-white dark:focus:bg-slate-900/60 disabled:opacity-50"
-                  >
-                    {selectedRegion === 'Todas' ? (
-                      <option value="Todas" className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">Seleccione una Región primero</option>
-                    ) : (
-                      localities.map((loc) => (
-                        <option key={loc} value={loc} className="bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-                          {loc === 'Todas' ? 'Todas las comunas' : loc}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3.5 text-[#6e685e] dark:text-slate-400">
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
-  </div>
 
         {/* Search Results Metadata Row */}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#d4cebe]/50 dark:border-slate-800/60 pt-3">
@@ -1006,10 +1006,10 @@ export function Dashboard({ stations }: DashboardProps) {
 
       {/* Mapa */}
       <section id="tour-map" className="px-6 md:px-12 max-w-[1600px] mx-auto mb-12 h-[600px] scroll-mt-24">
-        <AirMapWrapper 
-          stations={filtered} 
-          activePollutant={activePollutant} 
-          onSelectStation={setSelectedStation} 
+        <AirMapWrapper
+          stations={filtered}
+          activePollutant={activePollutant}
+          onSelectStation={setSelectedStation}
           searchCoords={searchCoords}
           selectedRegion={selectedRegion}
         />
@@ -1019,11 +1019,22 @@ export function Dashboard({ stations }: DashboardProps) {
       <section id="tour-table" className="px-6 md:px-12 max-w-[1400px] mx-auto pb-20 scroll-mt-24">
         <div id="tour-table-header" className="mb-6 flex items-center justify-between scroll-mt-24">
           <h2 className="text-2xl font-bold tracking-tight text-[#1e1b18] dark:text-white">Resumen por región</h2>
-          {(searchQuery || searchCoords || activeIcaFilter) && (
-            <span className="inline-flex items-center rounded-full border border-[#d4cebe] dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-3 py-1 text-xs text-[#6e685e] dark:text-slate-400 backdrop-blur-md font-semibold">
-              {searchCoords ? 'Proximidad geográfica activa' : activeIcaFilter ? `Categoría: ${activeIcaFilter}` : `Búsqueda: "${searchQuery}"`}
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {(searchQuery || searchCoords || activeIcaFilter) && (
+              <span className="inline-flex items-center rounded-full border border-[#d4cebe] dark:border-slate-700/60 bg-white/60 dark:bg-slate-900/40 px-3 py-1 text-xs text-[#6e685e] dark:text-slate-400 backdrop-blur-md font-semibold">
+                {searchCoords ? 'Proximidad geográfica activa' : activeIcaFilter ? `Categoría: ${activeIcaFilter}` : `Búsqueda: "${searchQuery}"`}
+              </span>
+            )}
+            <button
+              onClick={() => setShowReport(true)}
+              className="flex items-center gap-2 rounded-xl border border-[#d4cebe] dark:border-slate-700 bg-white/70 dark:bg-slate-900/60 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:border-emerald-400/60 dark:hover:border-emerald-600/40 px-4 py-2 text-xs font-bold text-[#4a453c] dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-400 transition-all shadow-sm"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Informe por Región
+            </button>
+          </div>
         </div>
         <RegionTable
           stations={filtered}
@@ -1036,9 +1047,14 @@ export function Dashboard({ stations }: DashboardProps) {
       {/* Panel de detalles de la estación */}
       <StationPanel station={selectedStation} activePollutant={activePollutant} onClose={() => setSelectedStation(null)} />
 
+      {/* Modal de Informe por Región */}
+      {showReport && (
+        <RegionReport stations={stations} onClose={() => setShowReport(false)} />
+      )}
+
       {/* Guided Tour Spotlight Overlay */}
       {tourStep !== null && tourCoords && (
-        <div 
+        <div
           className="absolute z-[8500] border-2 border-emerald-500 rounded-xl pointer-events-none transition-all duration-300 shadow-[0_0_0_9999px_rgba(15,23,42,0.65)]"
           style={{
             top: tourCoords.top - 8,
@@ -1056,10 +1072,10 @@ export function Dashboard({ stations }: DashboardProps) {
           style={
             (() => {
               if (!tourCoords) return { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '320px' } as const
-              
+
               const currentStep = tourSteps[tourStep]
               const isFixedBottom = currentStep.targetId === 'tour-map' || currentStep.targetId === 'tour-table-header'
-              
+
               if (isFixedBottom) {
                 return {
                   position: 'fixed',
@@ -1168,13 +1184,12 @@ function StatCard({
     <button
       type="button"
       onClick={onClick}
-      className={`w-full text-left rounded-xl border p-4 backdrop-blur-md transition-all duration-300 hover:scale-[1.02] cursor-pointer ${
-        isActive 
-          ? 'ring-2 ring-emerald-500 shadow-md font-bold scale-[1.03] border-transparent' 
-          : isSinDatos
-            ? 'opacity-40 hover:opacity-75 bg-slate-100/35 dark:bg-slate-900/15 border-slate-300/40 dark:border-slate-800/45'
-            : 'opacity-70 hover:opacity-100'
-      }`}
+      className={`w-full text-left rounded-xl border p-4 backdrop-blur-md transition-all duration-300 hover:scale-[1.02] cursor-pointer ${isActive
+        ? 'ring-2 ring-emerald-500 shadow-md font-bold scale-[1.03] border-transparent'
+        : isSinDatos
+          ? 'opacity-40 hover:opacity-75 bg-slate-100/35 dark:bg-slate-900/15 border-slate-300/40 dark:border-slate-800/45'
+          : 'opacity-70 hover:opacity-100'
+        }`}
       style={{
         backgroundColor: isSinDatos ? undefined : `${color}12`,
         borderColor: isActive ? 'transparent' : (isSinDatos ? undefined : `${color}35`),
