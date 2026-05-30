@@ -31,9 +31,9 @@ export function RegionTable({ stations, activePollutant, onSelectStation, search
     direction: SortDirection
   }>({ key: 'region', direction: 'asc' })
 
-  // Auto-expande todas las regiones que tienen resultados cuando se busca algo
+  // Auto-expande las regiones de las estaciones visibles para que se muestren inmediatamente al realizar cualquier búsqueda
   useEffect(() => {
-    if (searchQuery && searchQuery.trim() !== '') {
+    if (stations.length > 0) {
       const regionsWithStations = Array.from(new Set(stations.map(s => s.region)))
       setExpandedRegions(prev => {
         const next = new Set(prev)
@@ -41,7 +41,7 @@ export function RegionTable({ stations, activePollutant, onSelectStation, search
         return next
       })
     }
-  }, [searchQuery, stations])
+  }, [stations])
 
   const allRegions = useMemo(() => {
     return Array.from(new Set(stations.map((s) => s.region)))
@@ -373,6 +373,11 @@ export function RegionTable({ stations, activePollutant, onSelectStation, search
                                         <span className="rounded bg-[#e4dec9]/40 dark:bg-slate-800/60 px-1.5 py-0.5 text-[9px] font-bold text-[#6e685e] dark:text-slate-400 border border-[#d4cebe]/50 dark:border-slate-700/30">
                                           {s.locality}
                                         </span>
+                                        {typeof (s as any).distanceKm === 'number' && (
+                                          <span className="rounded bg-emerald-500/10 dark:bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                                            A {(s as any).distanceKm.toFixed(1)} km
+                                          </span>
+                                        )}
                                       </div>
                                       <p className="text-[11px] text-[#8c8273] dark:text-slate-500 mt-0.5">
                                         ID OpenAQ: {s.id}

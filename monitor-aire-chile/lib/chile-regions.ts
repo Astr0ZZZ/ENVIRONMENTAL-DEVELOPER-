@@ -33,6 +33,11 @@ export function getChileRegionAndLocality(
   const hasValidLoc = cleanLoc && cleanLoc.toLowerCase() !== 'chile'
   const finalLoc = hasValidLoc ? cleanLoc : null
 
+  // Special exception: Parque O'Higgins is in Región Metropolitana (Santiago)
+  if (sourceText.includes('parque o\'higgins') || sourceText.includes('parque ohiggins')) {
+    return { region: 'Región Metropolitana', locality: finalLoc || 'Santiago' }
+  }
+
   // 1. Región de Arica y Parinacota
   if (sourceText.includes('arica') || sourceText.includes('parinacota')) {
     return { region: 'Región de Arica y Parinacota', locality: finalLoc || 'Arica' }
@@ -330,40 +335,59 @@ export function getChileRegionAndLocality(
 
   // 8. Coordinate-based regional fallbacks for any unrecognized location
   if (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng)) {
-    // Región Metropolitana roughly: lat [-34.2, -33.0], lng [-71.5, -70.0]
-    if (lat < -33.0 && lat > -34.2 && lng < -70.0 && lng > -71.5) {
-      return { region: 'Región Metropolitana', locality: finalLoc || 'Santiago' }
+    if (lat > -19.0) {
+      return { region: 'Región de Arica y Parinacota', locality: finalLoc || 'Arica' }
     }
-    // Región de O'Higgins: lat [-35.0, -34.0], lng [-72.0, -70.0]
-    if (lat <= -34.0 && lat > -35.0 && lng < -70.0 && lng > -72.0) {
-      return { region: 'Región de O\'Higgins', locality: finalLoc || 'Rancagua' }
+    if (lat <= -19.0 && lat > -21.4) {
+      return { region: 'Región de Tarapacá', locality: finalLoc || 'Iquique' }
     }
-    // Región de Valparaíso: lat [-33.2, -32.0], lng [-72.5, -70.0]
-    if (lat <= -32.0 && lat > -33.2 && lng < -70.0 && lng > -72.5) {
+    if (lat <= -21.4 && lat > -26.0) {
+      return { region: 'Región de Antofagasta', locality: finalLoc || 'Antofagasta' }
+    }
+    if (lat <= -26.0 && lat > -29.2) {
+      return { region: 'Región de Atacama', locality: finalLoc || 'Copiapó' }
+    }
+    if (lat <= -29.2 && lat > -32.2) {
+      return { region: 'Región de Coquimbo', locality: finalLoc || 'Coquimbo' }
+    }
+    if (lat <= -32.2 && lat > -34.2) {
+      if (lat < -33.0 && lng > -71.25) {
+        return { region: 'Región Metropolitana', locality: finalLoc || 'Santiago' }
+      }
+      if (lat < -33.8) {
+        return { region: 'Región de O\'Higgins', locality: finalLoc || 'Rancagua' }
+      }
       return { region: 'Región de Valparaíso', locality: finalLoc || 'Valparaíso' }
     }
-    // Región del Maule: lat [-36.5, -34.8]
-    if (lat <= -34.8 && lat > -36.5 && lng < -70.0 && lng > -73.0) {
+    if (lat <= -34.2 && lat > -34.9) {
+      return { region: 'Región de O\'Higgins', locality: finalLoc || 'Rancagua' }
+    }
+    if (lat <= -34.9 && lat > -36.2) {
       return { region: 'Región del Maule', locality: finalLoc || 'Talca' }
     }
-    // Región del Biobío / Ñuble: lat [-38.2, -36.0]
-    if (lat <= -36.0 && lat > -38.2) {
-      if (lng > -72.5) {
+    if (lat <= -36.2 && lat > -37.2) {
+      if (lat > -36.8) {
         return { region: 'Región de Ñuble', locality: finalLoc || 'Chillán' }
       }
       return { region: 'Región del Biobío', locality: finalLoc || 'Concepción' }
     }
-    // Región de la Araucanía: lat [-39.8, -38.0]
-    if (lat <= -38.0 && lat > -39.8) {
+    if (lat <= -37.2 && lat > -38.3) {
+      return { region: 'Región del Biobío', locality: finalLoc || 'Concepción' }
+    }
+    if (lat <= -38.3 && lat > -39.5) {
       return { region: 'Región de la Araucanía', locality: finalLoc || 'Temuco' }
     }
-    // Región de Los Ríos: lat [-40.8, -39.8]
-    if (lat <= -39.8 && lat > -40.8) {
+    if (lat <= -39.5 && lat > -40.5) {
       return { region: 'Región de Los Ríos', locality: finalLoc || 'Valdivia' }
     }
-    // Región de Los Lagos: lat [-44.0, -40.8]
-    if (lat <= -40.8 && lat > -44.0) {
+    if (lat <= -40.5 && lat > -43.8) {
       return { region: 'Región de Los Lagos', locality: finalLoc || 'Puerto Montt' }
+    }
+    if (lat <= -43.8 && lat > -48.5) {
+      return { region: 'Región de Aysén', locality: finalLoc || 'Coyhaique' }
+    }
+    if (lat <= -48.5) {
+      return { region: 'Región de Magallanes', locality: finalLoc || 'Punta Arenas' }
     }
   }
 

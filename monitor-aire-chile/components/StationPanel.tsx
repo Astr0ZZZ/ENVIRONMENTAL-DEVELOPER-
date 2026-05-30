@@ -159,7 +159,7 @@ export function StationPanel({ station, activePollutant, onClose }: StationPanel
     <>
       {/* Backdrop */}
       <div
-        className={`fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm transition-opacity duration-300 ${
+        className={`fixed inset-0 z-[9999] bg-slate-950/60 backdrop-blur-sm transition-opacity duration-300 ${
           isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         onClick={onClose}
@@ -167,7 +167,7 @@ export function StationPanel({ station, activePollutant, onClose }: StationPanel
 
       {/* Panel Lateral Deslizable */}
       <div
-        className={`fixed inset-y-0 right-0 z-50 flex h-full w-full flex-col border-l border-[#d4cebe] dark:border-slate-800/80 bg-[#f5f2eb]/95 dark:bg-slate-900/90 text-[#2d2a24] dark:text-slate-100 shadow-2xl backdrop-blur-2xl transition-transform duration-300 ease-out sm:max-w-md ${
+        className={`fixed inset-y-0 right-0 z-[9999] flex h-full w-full flex-col border-l border-[#d4cebe] dark:border-slate-800/80 bg-[#f5f2eb]/95 dark:bg-slate-900/90 text-[#2d2a24] dark:text-slate-100 shadow-2xl backdrop-blur-2xl transition-transform duration-300 ease-out sm:max-w-md ${
           isVisible ? 'translate-x-0' : 'translate-x-full'
         }`}
       >

@@ -12,6 +12,7 @@ export interface Station {
   o3?: number | null
   co?: number | null
   lastUpdated?: string
+  active?: boolean
 }
 
 export interface ICAResult {

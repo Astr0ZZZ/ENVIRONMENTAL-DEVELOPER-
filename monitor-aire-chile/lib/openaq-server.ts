@@ -5,11 +5,12 @@ import path from 'path'
 import { getChileRegionAndLocality } from './chile-regions'
 
 const OPENAQ_BASE = 'https://api.openaq.org/v3'
-const CONCURRENCY = 5
+const CONCURRENCY = 2
 const FETCH_TIMEOUT = 8000
 const CACHE_TTL_MS = 15 * 60 * 1000 // 15 minutos
 
 const CACHE_FILE_PATH = path.join(process.cwd(), 'lib', 'openaq-cache.json')
+
 
 /* ---------- cache interfaces & helpers ---------- */
 
@@ -20,6 +21,12 @@ interface CacheStationData {
   no2?: number | null
   o3?: number | null
   co?: number | null
+  pm10Updated?: string
+  pm25Updated?: string
+  so2Updated?: string
+  no2Updated?: string
+  o3Updated?: string
+  coUpdated?: string
   lastUpdated?: string
   cachedAt: number
 }
@@ -103,7 +110,7 @@ async function batchMap<T, R>(
 
     // Pausa entre lotes para ser buen ciudadano con la API
     if (i + batchSize < items.length) {
-      await new Promise((r) => setTimeout(r, 150))
+      await new Promise((r) => setTimeout(r, 300))
     }
   }
 
@@ -132,7 +139,7 @@ export async function fetchLocationsServer(): Promise<Station[]> {
         writeCache(cache)
       }
     } catch (err) {
-      console.error('[openaq] Fallo obteniendo catálogo base de locaciones:', err)
+      console.warn('[openaq] Fallo obteniendo catálogo base de locaciones:', err)
       if (cache.locations) {
         console.log('[openaq] Usando ubicaciones de caché expirado como fallback')
         results = cache.locations
@@ -161,6 +168,17 @@ export async function fetchLocationsServer(): Promise<Station[]> {
         lat,
         lng
       )
+      // Check if location's datetimeLast is stale (older than 7 days)
+      let active = true
+      if (loc.datetimeLast?.utc) {
+        const lastTime = new Date(loc.datetimeLast.utc).getTime()
+        if (Date.now() - lastTime > 7 * 24 * 60 * 60 * 1000) {
+          active = false
+        }
+      } else {
+        active = false
+      }
+
       return {
         id: String(loc.id),
         nombre: String(loc.name),
@@ -169,6 +187,7 @@ export async function fetchLocationsServer(): Promise<Station[]> {
         lat,
         lng,
         sensorMap,
+        active,
       }
     })
     .filter((s: any) => !isNaN(s.lat) && !isNaN(s.lng))
@@ -186,8 +205,9 @@ export async function fetchLocationsServer(): Promise<Station[]> {
     return aTime - bTime
   })
 
-  // Filtrar estaciones expiradas
+  // Filtrar estaciones expiradas (solo activas)
   const expiredStations = sortedStations.filter((station) => {
+    if (!station.active) return false
     const stationCache = freshCache.stations[station.id]
     return !stationCache || now - stationCache.cachedAt >= CACHE_TTL_MS
   })
@@ -218,7 +238,13 @@ export async function fetchLocationsServer(): Promise<Station[]> {
           let no2: number | null = null
           let o3: number | null = null
           let co: number | null = null
-          let lastUpdated: string | undefined
+
+          let pm10Updated: string | undefined
+          let pm25Updated: string | undefined
+          let so2Updated: string | undefined
+          let no2Updated: string | undefined
+          let o3Updated: string | undefined
+          let coUpdated: string | undefined
 
           for (const r of results) {
             const sensorId = Number(r.sensorsId)
@@ -228,32 +254,59 @@ export async function fetchLocationsServer(): Promise<Station[]> {
 
             if (paramName === 'pm10' && value !== null && pm10 === null) {
               pm10 = value
-              if (ts) lastUpdated = ts
+              if (ts) pm10Updated = ts
             }
             if (paramName === 'pm25' && value !== null && pm25 === null) {
               pm25 = value
-              if (ts) lastUpdated = ts
+              if (ts) pm25Updated = ts
             }
             if (paramName === 'so2' && value !== null && so2 === null) {
               so2 = value
-              if (ts) lastUpdated = ts
+              if (ts) so2Updated = ts
             }
             if (paramName === 'no2' && value !== null && no2 === null) {
               no2 = value
-              if (ts) lastUpdated = ts
+              if (ts) no2Updated = ts
             }
             if (paramName === 'o3' && value !== null && o3 === null) {
               o3 = value
-              if (ts) lastUpdated = ts
+              if (ts) o3Updated = ts
             }
             if (paramName === 'co' && value !== null && co === null) {
               co = value
-              if (ts) lastUpdated = ts
+              if (ts) coUpdated = ts
             }
           }
-          return { id: station.id, pm10, pm25, so2, no2, o3, co, lastUpdated, success: true }
+
+          // Calculate global lastUpdated for backward compatibility/general info
+          let lastUpdated: string | undefined
+          const dates = [pm10Updated, pm25Updated, so2Updated, no2Updated, o3Updated, coUpdated]
+            .filter(Boolean)
+            .map(d => new Date(d!))
+          if (dates.length > 0) {
+            const maxDate = new Date(Math.max(...dates.map(d => d.getTime())))
+            lastUpdated = maxDate.toISOString()
+          }
+
+          return {
+            id: station.id,
+            pm10,
+            pm25,
+            so2,
+            no2,
+            o3,
+            co,
+            pm10Updated,
+            pm25Updated,
+            so2Updated,
+            no2Updated,
+            o3Updated,
+            coUpdated,
+            lastUpdated,
+            success: true
+          }
         } catch (err) {
-          console.error(`[openaq] Fallo latest para location ${station.id}:`, err)
+          console.warn(`[openaq] Fallo latest para location ${station.id}:`, err)
           return { id: station.id, success: false }
         }
       }
@@ -272,6 +325,12 @@ export async function fetchLocationsServer(): Promise<Station[]> {
             no2: val.no2 ?? null,
             o3: val.o3 ?? null,
             co: val.co ?? null,
+            pm10Updated: val.pm10Updated,
+            pm25Updated: val.pm25Updated,
+            so2Updated: val.so2Updated,
+            no2Updated: val.no2Updated,
+            o3Updated: val.o3Updated,
+            coUpdated: val.coUpdated,
             lastUpdated: val.lastUpdated,
             cachedAt: Date.now()
           }
@@ -302,6 +361,40 @@ export async function fetchLocationsServer(): Promise<Station[]> {
   const finalCache = readCache()
   return baseStations.map((station): Station => {
     const cached = finalCache.stations[station.id]
+    const isActive = station.active
+
+    const isParamFresh = (paramUpdated: string | undefined) => {
+      const ts = paramUpdated || (cached ? cached.lastUpdated : undefined)
+      if (!ts) return false
+      const lastUpDate = new Date(ts)
+      const diffDays = (Date.now() - lastUpDate.getTime()) / (1000 * 60 * 60 * 24)
+      return diffDays <= 7
+    }
+
+    const showPm10 = isActive && cached && isParamFresh(cached.pm10Updated)
+    const showPm25 = isActive && cached && isParamFresh(cached.pm25Updated)
+    const showSo2 = isActive && cached && isParamFresh(cached.so2Updated)
+    const showNo2 = isActive && cached && isParamFresh(cached.no2Updated)
+    const showO3 = isActive && cached && isParamFresh(cached.o3Updated)
+    const showCo = isActive && cached && isParamFresh(cached.coUpdated)
+
+    let newestFreshUpdate: string | undefined
+    if (cached) {
+      const freshDates = [
+        showPm10 ? (cached.pm10Updated || cached.lastUpdated) : null,
+        showPm25 ? (cached.pm25Updated || cached.lastUpdated) : null,
+        showSo2 ? (cached.so2Updated || cached.lastUpdated) : null,
+        showNo2 ? (cached.no2Updated || cached.lastUpdated) : null,
+        showO3 ? (cached.o3Updated || cached.lastUpdated) : null,
+        showCo ? (cached.coUpdated || cached.lastUpdated) : null,
+      ]
+        .filter(Boolean)
+        .map(d => new Date(d!))
+      if (freshDates.length > 0) {
+        newestFreshUpdate = new Date(Math.max(...freshDates.map(d => d.getTime()))).toISOString()
+      }
+    }
+
     return {
       id: station.id,
       nombre: station.nombre,
@@ -309,13 +402,14 @@ export async function fetchLocationsServer(): Promise<Station[]> {
       locality: station.locality,
       lat: station.lat,
       lng: station.lng,
-      pm10: cached ? cached.pm10 : null,
-      pm25: cached ? cached.pm25 : null,
-      so2: cached ? (cached.so2 ?? null) : null,
-      no2: cached ? (cached.no2 ?? null) : null,
-      o3: cached ? (cached.o3 ?? null) : null,
-      co: cached ? (cached.co ?? null) : null,
-      lastUpdated: cached ? cached.lastUpdated : undefined,
+      pm10: showPm10 && cached ? cached.pm10 : null,
+      pm25: showPm25 && cached ? cached.pm25 : null,
+      so2: showSo2 && cached ? (cached.so2 ?? null) : null,
+      no2: showNo2 && cached ? (cached.no2 ?? null) : null,
+      o3: showO3 && cached ? (cached.o3 ?? null) : null,
+      co: showCo && cached ? (cached.co ?? null) : null,
+      lastUpdated: newestFreshUpdate || (cached ? cached.lastUpdated : undefined),
+      active: isActive,
     }
   })
 }
