@@ -114,7 +114,12 @@ export function Dashboard({ stations }: DashboardProps) {
     {
       targetId: 'tour-table-header',
       title: '📊 Resumen por Región',
-      content: 'Revisa y compara los datos consolidados en la tabla. Se expandirá automáticamente según tu búsqueda y filtros.',
+      content: 'Compara los datos agrupados por regiones. Puedes expandir y ver las estaciones de una región haciendo clic en su fila.',
+    },
+    {
+      targetId: 'toggle-minimize-table-btn',
+      title: '↕️ Minimizar o Maximizar',
+      content: 'Haz clic en este botón para ocultar o volver a mostrar la tabla completa en cualquier momento y liberar espacio visual.',
     },
   ], [])
 

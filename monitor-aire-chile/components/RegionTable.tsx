@@ -33,7 +33,7 @@ export function RegionTable({ stations, activePollutant, onSelectStation, search
 
   // Auto-expande las regiones de las estaciones visibles para que se muestren inmediatamente al realizar cualquier búsqueda
   useEffect(() => {
-    if (stations.length > 0) {
+    if (stations.length > 0 && searchQuery && searchQuery.trim().length > 0) {
       const regionsWithStations = Array.from(new Set(stations.map(s => s.region)))
       setExpandedRegions(prev => {
         const next = new Set(prev)
@@ -41,7 +41,7 @@ export function RegionTable({ stations, activePollutant, onSelectStation, search
         return next
       })
     }
-  }, [stations])
+  }, [stations, searchQuery])
 
   const allRegions = useMemo(() => {
     return Array.from(new Set(stations.map((s) => s.region)))
