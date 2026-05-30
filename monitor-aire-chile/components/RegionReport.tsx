@@ -18,14 +18,22 @@ interface RegionReportProps {
     onClose: () => void
 }
 
-const POLLUTANTS = [
-    { key: 'pm25', label: 'PM2.5', unit: 'µg/m³', max: 150 },
-    { key: 'pm10', label: 'PM10', unit: 'µg/m³', max: 300 },
-    { key: 'so2', label: 'SO₂', unit: 'µg/m³', max: 500 },
-    { key: 'no2', label: 'NO₂', unit: 'µg/m³', max: 400 },
-    { key: 'o3', label: 'O₃', unit: 'µg/m³', max: 300 },
-    { key: 'co', label: 'CO', unit: 'mg/m³', max: 15000, divisor: 1000, maxDisplay: 15 },
-] as const
+// ─── Normativa legal chilena ───────────────────────────────────────────────
+const LEGAL_LIMITS: Record<string, { value: number; decreto: string; label: string; unit: string }> = {
+    pm25: { value: 50, decreto: 'DS N°12/2011 MMA', label: 'MP2,5 límite 24h', unit: 'µg/m³' },
+    pm10: { value: 130, decreto: 'DS N°12/2021 MMA', label: 'MP10 límite 24h', unit: 'µg/m³' },
+    so2: { value: 250, decreto: 'OMS / NCh', label: 'SO₂ referencia', unit: 'µg/m³' },
+    no2: { value: 200, decreto: 'OMS / NCh', label: 'NO₂ referencia', unit: 'µg/m³' },
+    o3: { value: 160, decreto: 'OMS / NCh', label: 'O₃ referencia', unit: 'µg/m³' },
+    co: { value: 10, decreto: 'OMS / NCh', label: 'CO referencia', unit: 'mg/m³' },
+}
+
+// Umbrales episodios críticos GEC (MP2.5 24h, µg/m³)
+const GEC_THRESHOLDS = [
+    { label: 'Emergencia', min: 170, color: COLOR_EMERGENCIA },
+    { label: 'Preemergencia', min: 110, color: COLOR_PREEMERGENCIA },
+    { label: 'Alerta', min: 80, color: COLOR_ALERTA },
+]
 
 const SEVERITY_ORDER = ['Bueno', 'Regular', 'Alerta', 'Preemergencia', 'Emergencia', 'Sin datos']
 
@@ -38,631 +46,602 @@ const ICA_COLORS: Record<string, string> = {
     'Sin datos': COLOR_SINDATOS,
 }
 
+const POLLUTANTS = [
+    { key: 'pm25', label: 'PM2.5', unit: 'µg/m³', isCO: false },
+    { key: 'pm10', label: 'PM10', unit: 'µg/m³', isCO: false },
+    { key: 'so2', label: 'SO₂', unit: 'µg/m³', isCO: false },
+    { key: 'no2', label: 'NO₂', unit: 'µg/m³', isCO: false },
+    { key: 'o3', label: 'O₃', unit: 'µg/m³', isCO: false },
+    { key: 'co', label: 'CO', unit: 'mg/m³', isCO: true },
+] as const
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+function hasAnyData(s: Station): boolean {
+    return POLLUTANTS.some(p => {
+        const v = s[p.key as keyof Station]
+        return typeof v === 'number' && v >= 0
+    })
+}
+
+function getDisplayVal(val: number, key: string): number {
+    return key === 'co' ? val / 1000 : val
+}
+
+function formatVal(val: number, key: string): string {
+    const d = getDisplayVal(val, key)
+    return d < 10 ? d.toFixed(2) : Math.round(d).toString()
+}
+
+function exceedsLegal(val: number, key: string): boolean {
+    const limit = LEGAL_LIMITS[key]
+    if (!limit) return false
+    const display = getDisplayVal(val, key)
+    return display > limit.value
+}
+
+function getGECLevel(pm25: number | null | undefined): string | null {
+    if (typeof pm25 !== 'number' || pm25 < 0) return null
+    for (const t of GEC_THRESHOLDS) {
+        if (pm25 >= t.min) return t.label
+    }
+    return null
+}
+
+function getRegionGECLevel(stns: Station[]): string | null {
+    let worst: string | null = null
+    const order = ['Alerta', 'Preemergencia', 'Emergencia']
+    for (const s of stns) {
+        const lvl = getGECLevel(s.pm25 ?? null)
+        if (lvl && (!worst || order.indexOf(lvl) > order.indexOf(worst))) {
+            worst = lvl
+        }
+    }
+    return worst
+}
+
 function computeRegionStats(stns: Station[]) {
-    const withData = stns.filter((s) => getWorstICACategory(s) !== null)
-    const noData = stns.length - withData.length
+    const withData = stns.filter(hasAnyData)
 
     const categoryCounts: Record<string, number> = {
-        Bueno: 0, Regular: 0, Alerta: 0, Preemergencia: 0, Emergencia: 0, 'Sin datos': noData,
+        Bueno: 0, Regular: 0, Alerta: 0, Preemergencia: 0, Emergencia: 0,
     }
-
     for (const s of withData) {
-        const cat = getWorstICACategory(s)?.categoria ?? 'Sin datos'
-        categoryCounts[cat] = (categoryCounts[cat] ?? 0) + 1
+        const cat = getWorstICACategory(s)?.categoria
+        if (cat && cat in categoryCounts) categoryCounts[cat]++
     }
 
-    const pollutantStats = POLLUTANTS.map((p) => {
-        const vals = stns
-            .map((s) => s[p.key as keyof Station] as number | undefined | null)
+    const pollutantStats = POLLUTANTS.map(p => {
+        const vals = withData
+            .map(s => s[p.key as keyof Station] as number | undefined | null)
             .filter((v): v is number => typeof v === 'number' && v >= 0)
-        if (vals.length === 0) return { ...p, avg: null, max: null, min: null, count: 0 }
+        if (!vals.length) return { ...p, avg: null, max: null, min: null, count: 0 }
         const avg = vals.reduce((a, b) => a + b, 0) / vals.length
-        return {
-            ...p,
-            avg,
-            max: Math.max(...vals),
-            min: Math.min(...vals),
-            count: vals.length,
-        }
-    })
+        return { ...p, avg, max: Math.max(...vals), min: Math.min(...vals), count: vals.length }
+    }).filter(p => p.count > 0)
 
-    const worstStation = stns.reduce<Station | null>((worst, s) => {
-        const cat = getWorstICACategory(s)?.categoria ?? 'Sin datos'
-        const catIdx = SEVERITY_ORDER.indexOf(cat)
-        const worstCat = worst ? (getWorstICACategory(worst)?.categoria ?? 'Sin datos') : 'Sin datos'
-        const worstIdx = SEVERITY_ORDER.indexOf(worstCat)
-        return catIdx > worstIdx ? s : worst
-    }, null)
-
-    return { categoryCounts, pollutantStats, worstStation, withData: withData.length, noData }
-}
-
-// Mini SVG bar chart for PDF preview
-function BarChart({
-    data,
-    width = 280,
-    height = 120,
-}: {
-    data: { label: string; value: number | null; unit: string; maxVal: number; color: string }[]
-    width?: number
-    height?: number
-}) {
-    const padding = { top: 10, right: 8, bottom: 32, left: 40 }
-    const chartW = width - padding.left - padding.right
-    const chartH = height - padding.top - padding.bottom
-    const barW = Math.floor(chartW / data.length) - 4
-
-    const maxVal = Math.max(...data.filter((d) => d.value !== null).map((d) => d.maxVal), 1)
-
-    return (
-        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ overflow: 'visible' }}>
-            {/* Y axis line */}
-            <line
-                x1={padding.left}
-                y1={padding.top}
-                x2={padding.left}
-                y2={padding.top + chartH}
-                stroke="#4a453c"
-                strokeWidth={0.5}
-                opacity={0.3}
-            />
-            {/* X axis line */}
-            <line
-                x1={padding.left}
-                y1={padding.top + chartH}
-                x2={padding.left + chartW}
-                y2={padding.top + chartH}
-                stroke="#4a453c"
-                strokeWidth={0.5}
-                opacity={0.3}
-            />
-
-            {data.map((d, i) => {
-                const x = padding.left + i * (chartW / data.length) + 2
-                const barHeight = d.value !== null ? Math.max(2, (d.value / d.maxVal) * chartH) : 0
-                const y = padding.top + chartH - barHeight
-
-                return (
-                    <g key={d.label}>
-                        {/* Bar */}
-                        {d.value !== null && (
-                            <rect
-                                x={x}
-                                y={y}
-                                width={barW}
-                                height={barHeight}
-                                fill={d.color}
-                                rx={2}
-                                opacity={0.85}
-                            />
-                        )}
-                        {d.value === null && (
-                            <rect
-                                x={x}
-                                y={padding.top + chartH - 4}
-                                width={barW}
-                                height={4}
-                                fill={COLOR_SINDATOS}
-                                rx={2}
-                                opacity={0.4}
-                            />
-                        )}
-                        {/* Value label */}
-                        {d.value !== null && (
-                            <text
-                                x={x + barW / 2}
-                                y={y - 3}
-                                textAnchor="middle"
-                                fontSize={7}
-                                fill={d.color}
-                                fontWeight="700"
-                            >
-                                {d.value < 10 ? d.value.toFixed(1) : Math.round(d.value)}
-                            </text>
-                        )}
-                        {/* X label */}
-                        <text
-                            x={x + barW / 2}
-                            y={padding.top + chartH + 12}
-                            textAnchor="middle"
-                            fontSize={7.5}
-                            fill="#6e685e"
-                            fontWeight="600"
-                        >
-                            {d.label}
-                        </text>
-                    </g>
-                )
-            })}
-        </svg>
-    )
-}
-
-// Donut chart for category distribution
-function DonutChart({
-    data,
-    size = 100,
-}: {
-    data: { label: string; count: number; color: string }[]
-    size?: number
-}) {
-    const total = data.reduce((a, b) => a + b.count, 0)
-    if (total === 0) return <div style={{ width: size, height: size }} className="flex items-center justify-center text-xs text-slate-500">Sin datos</div>
-
-    const cx = size / 2
-    const cy = size / 2
-    const r = size * 0.38
-    const innerR = size * 0.22
-    let angle = -Math.PI / 2
-
-    const segments = data
-        .filter((d) => d.count > 0)
-        .map((d) => {
-            const sweep = (d.count / total) * 2 * Math.PI
-            const startAngle = angle
-            angle += sweep
-            const endAngle = angle
-
-            const x1 = cx + r * Math.cos(startAngle)
-            const y1 = cy + r * Math.sin(startAngle)
-            const x2 = cx + r * Math.cos(endAngle)
-            const y2 = cy + r * Math.sin(endAngle)
-            const ix1 = cx + innerR * Math.cos(startAngle)
-            const iy1 = cy + innerR * Math.sin(startAngle)
-            const ix2 = cx + innerR * Math.cos(endAngle)
-            const iy2 = cy + innerR * Math.sin(endAngle)
-            const largeArc = sweep > Math.PI ? 1 : 0
-
-            return {
-                ...d,
-                path: `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} L ${ix2} ${iy2} A ${innerR} ${innerR} 0 ${largeArc} 0 ${ix1} ${iy1} Z`,
-                sweep,
-            }
+    // Communes grouping
+    const communeMap = new Map<string, Station[]>()
+    for (const s of withData) {
+        if (!communeMap.has(s.locality)) communeMap.set(s.locality, [])
+        communeMap.get(s.locality)!.push(s)
+    }
+    const communes = Array.from(communeMap.entries())
+        .map(([name, stns]) => {
+            const worst = stns.reduce<string>((w, s) => {
+                const cat = getWorstICACategory(s)?.categoria ?? 'Sin datos'
+                return SEVERITY_ORDER.indexOf(cat) > SEVERITY_ORDER.indexOf(w) ? cat : w
+            }, 'Bueno')
+            return { name, stations: stns, worstCategory: worst }
         })
+        .sort((a, b) => SEVERITY_ORDER.indexOf(b.worstCategory) - SEVERITY_ORDER.indexOf(a.worstCategory))
 
+    // Legal violations
+    const violations: { station: string; locality: string; pollutant: string; value: number; decreto: string }[] = []
+    for (const s of withData) {
+        for (const p of POLLUTANTS) {
+            const val = s[p.key as keyof Station] as number | undefined | null
+            if (typeof val === 'number' && val >= 0 && exceedsLegal(val, p.key)) {
+                violations.push({
+                    station: s.nombre,
+                    locality: s.locality,
+                    pollutant: p.label,
+                    value: val,
+                    decreto: LEGAL_LIMITS[p.key].decreto,
+                })
+            }
+        }
+    }
+
+    return { categoryCounts, pollutantStats, communes, violations, withData: withData.length, total: stns.length }
+}
+
+// ─── SVG Components ────────────────────────────────────────────────────────
+
+function DonutChart({ data, size = 96 }: { data: { label: string; count: number; color: string }[]; size?: number }) {
+    const total = data.reduce((a, b) => a + b.count, 0)
+    if (!total) return null
+    const cx = size / 2, cy = size / 2
+    const R = size * 0.4, r = size * 0.24
+    let angle = -Math.PI / 2
+    const segs = data.filter(d => d.count > 0).map(d => {
+        const sweep = (d.count / total) * 2 * Math.PI
+        const s = angle, e = angle + sweep
+        angle = e
+        const large = sweep > Math.PI ? 1 : 0
+        const path = `M${cx + R * Math.cos(s)} ${cy + R * Math.sin(s)} A${R} ${R} 0 ${large} 1 ${cx + R * Math.cos(e)} ${cy + R * Math.sin(e)} L${cx + r * Math.cos(e)} ${cy + r * Math.sin(e)} A${r} ${r} 0 ${large} 0 ${cx + r * Math.cos(s)} ${cy + r * Math.sin(s)}Z`
+        return { ...d, path }
+    })
     return (
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-            {segments.map((s, i) => (
-                <path key={i} d={s.path} fill={s.color} opacity={0.9} />
-            ))}
-            <text x={cx} y={cy - 4} textAnchor="middle" fontSize={10} fontWeight="800" fill="#2d2a24">
-                {total}
-            </text>
-            <text x={cx} y={cy + 8} textAnchor="middle" fontSize={6} fill="#6e685e">
-                estaciones
-            </text>
+            {segs.map((s, i) => <path key={i} d={s.path} fill={s.color} opacity={0.92} />)}
+            <text x={cx} y={cy - 5} textAnchor="middle" fontSize={11} fontWeight="800" fill="#1a1714">{total}</text>
+            <text x={cx} y={cy + 8} textAnchor="middle" fontSize={6} fill="#8c8273">estaciones</text>
         </svg>
     )
 }
 
+function HorizontalBar({
+    label, value, maxVal, color, legalLimit, legalLabel, unit, decreto
+}: {
+    label: string; value: number | null; maxVal: number; color: string
+    legalLimit?: number; legalLabel?: string; unit: string; decreto?: string
+}) {
+    const W = 320, H = 28
+    const barW = value !== null ? Math.max(4, (value / maxVal) * W) : 0
+    const limitX = legalLimit ? Math.min((legalLimit / maxVal) * W, W) : null
+    const exceeds = legalLimit && value !== null && value > legalLimit
+
+    return (
+        <div style={{ marginBottom: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#4a453c' }}>{label}</span>
+                <span style={{ fontSize: 10, fontWeight: 800, color: color, fontVariantNumeric: 'tabular-nums' }}>
+                    {value !== null ? `${value < 10 ? value.toFixed(2) : Math.round(value)} ${unit}` : '—'}
+                    {exceeds && <span style={{ marginLeft: 4, fontSize: 8, background: COLOR_EMERGENCIA, color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 900 }}>↑ {decreto}</span>}
+                </span>
+            </div>
+            <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H }}>
+                {/* Track */}
+                <rect x={0} y={8} width={W} height={12} rx={6} fill="#e4dec9" opacity={0.6} />
+                {/* Bar */}
+                {value !== null && <rect x={0} y={8} width={barW} height={12} rx={6} fill={color} opacity={0.85} />}
+                {/* Legal limit line */}
+                {limitX !== null && (
+                    <>
+                        <line x1={limitX} y1={4} x2={limitX} y2={24} stroke="#FF2E54" strokeWidth={1.5} strokeDasharray="3,2" />
+                        <text x={limitX + 3} y={5} fontSize={6} fill="#FF2E54" fontWeight={700}>{legalLabel}</text>
+                    </>
+                )}
+            </svg>
+        </div>
+    )
+}
+
+// ─── Main Component ────────────────────────────────────────────────────────
 export function RegionReport({ stations, onClose }: RegionReportProps) {
-    const [selectedRegion, setSelectedRegion] = useState<string>('')
+    const [selectedRegion, setSelectedRegion] = useState('')
     const [isGenerating, setIsGenerating] = useState(false)
     const [progress, setProgress] = useState(0)
     const reportRef = useRef<HTMLDivElement>(null)
 
-    const regions = Array.from(new Set(stations.map((s) => s.region))).sort()
-
-    const regionStations = selectedRegion
-        ? stations.filter((s) => s.region === selectedRegion)
-        : []
-
+    const regions = Array.from(new Set(stations.map(s => s.region))).sort()
+    const regionStations = selectedRegion ? stations.filter(s => s.region === selectedRegion) : []
     const stats = selectedRegion ? computeRegionStats(regionStations) : null
+    const gecLevel = selectedRegion ? getRegionGECLevel(regionStations.filter(hasAnyData)) : null
+
+    const now = new Date().toLocaleString('es-CL', {
+        day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    })
+    const dateOnly = new Date().toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' })
 
     const handleGeneratePDF = useCallback(async () => {
         if (!selectedRegion || !stats || !reportRef.current) return
         setIsGenerating(true)
-        setProgress(10)
-
+        setProgress(15)
         try {
-            // Dynamic imports to avoid SSR issues
-            const [jsPDFModule, html2canvasModule] = await Promise.all([
-                import('jspdf'),
-                import('html2canvas'),
+            const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+                import('jspdf'), import('html2canvas')
             ])
-            const jsPDF = jsPDFModule.default
-            const html2canvas = html2canvasModule.default
-
-            setProgress(30)
-
+            setProgress(35)
             const canvas = await html2canvas(reportRef.current, {
-                scale: 2,
-                useCORS: true,
-                backgroundColor: '#faf8f2',
-                logging: false,
+                scale: 2.5, useCORS: true, backgroundColor: '#faf8f2', logging: false,
             })
-
             setProgress(70)
-
-            const imgData = canvas.toDataURL('image/png')
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-
             const pageW = pdf.internal.pageSize.getWidth()
             const pageH = pdf.internal.pageSize.getHeight()
-            const margin = 12
+            const margin = 10
             const contentW = pageW - margin * 2
+            const imgRatio = canvas.height / canvas.width
+            const scaledH = contentW * imgRatio
+            const pagesNeeded = Math.ceil(scaledH / (pageH - margin * 2))
 
-            // Scale image to fit page width
-            const imgW = canvas.width
-            const imgH = canvas.height
-            const ratio = contentW / (imgW / (96 / 25.4))
-            const scaledW = contentW
-            const scaledH = (imgH / imgW) * scaledW
-
-            // Paginate if content exceeds one page
-            let yOffset = 0
-            let page = 0
-
-            while (yOffset < scaledH) {
-                if (page > 0) pdf.addPage()
-                pdf.addImage(imgData, 'PNG', margin, margin, scaledW, scaledH, '', 'FAST', 0)
-                // Clip to page
-                yOffset += pageH - margin * 2
-                page++
-                if (page > 20) break // safety
+            for (let i = 0; i < pagesNeeded; i++) {
+                if (i > 0) pdf.addPage()
+                const srcY = i * (canvas.width * ((pageH - margin * 2) / contentW))
+                const srcH = Math.min(canvas.width * ((pageH - margin * 2) / contentW), canvas.height - srcY)
+                if (srcH <= 0) break
+                const pageCanvas = document.createElement('canvas')
+                pageCanvas.width = canvas.width
+                pageCanvas.height = srcH
+                const ctx = pageCanvas.getContext('2d')!
+                ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH)
+                pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', margin, margin, contentW, srcH * (contentW / canvas.width))
             }
 
-            setProgress(90)
-
-            const safeRegion = selectedRegion.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '')
-            const dateStr = new Date().toISOString().split('T')[0]
-            pdf.save(`Informe_CalidadAire_${safeRegion}_${dateStr}.pdf`)
-
+            setProgress(92)
+            const safe = selectedRegion.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '')
+            pdf.save(`Informe_CalidadAire_${safe}_${new Date().toISOString().split('T')[0]}.pdf`)
             setProgress(100)
-            setTimeout(() => {
-                setIsGenerating(false)
-                setProgress(0)
-            }, 800)
-        } catch (err) {
-            console.error('PDF generation error:', err)
+            setTimeout(() => { setIsGenerating(false); setProgress(0) }, 700)
+        } catch (e) {
+            console.error(e)
             setIsGenerating(false)
             setProgress(0)
         }
     }, [selectedRegion, stats])
 
-    const now = new Date().toLocaleString('es-CL', {
-        day: '2-digit',
-        month: 'long',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    })
-
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 backdrop-blur-sm p-4">
-            <div className="w-full max-w-3xl my-8">
-                {/* Modal header */}
-                <div className="rounded-t-2xl border border-[#d4cebe] dark:border-slate-700 bg-[#faf8f2] dark:bg-slate-900 px-6 py-5 flex items-center justify-between">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
-                                Red Nacional de Monitoreo
-                            </span>
-                        </div>
-                        <h2 className="text-xl font-black text-[#2d2a24] dark:text-white">
-                            Informe de Calidad del Aire
-                        </h2>
-                        <p className="text-xs text-[#8c8273] dark:text-slate-400 mt-0.5">
-                            Genera un informe PDF detallado por región con estadísticas y semáforos ICA
-                        </p>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="rounded-xl border border-[#d4cebe] dark:border-slate-700 bg-white/60 dark:bg-slate-800 p-2.5 text-[#6e685e] dark:text-slate-400 hover:text-[#2d2a24] dark:hover:text-white transition-colors"
-                    >
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 py-8">
+            <div className="w-full max-w-2xl">
 
-                {/* Region selector */}
-                <div className="border-x border-[#d4cebe] dark:border-slate-700 bg-white/80 dark:bg-slate-950/80 px-6 py-4">
-                    <label className="block text-xs font-bold uppercase tracking-widest text-[#6e685e] dark:text-slate-400 mb-2">
-                        Seleccionar Región
-                    </label>
-                    <select
-                        value={selectedRegion}
-                        onChange={(e) => setSelectedRegion(e.target.value)}
-                        className="w-full rounded-xl border border-[#d4cebe] dark:border-slate-700 bg-[#faf8f2] dark:bg-slate-900 px-4 py-3 text-sm font-semibold text-[#2d2a24] dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition-all appearance-none cursor-pointer"
-                    >
-                        <option value="">— Elige una región —</option>
-                        {regions.map((r) => (
-                            <option key={r} value={r}>{r}</option>
-                        ))}
-                    </select>
-                </div>
+                {/* ── Modal shell ── */}
+                <div className="rounded-2xl overflow-hidden shadow-2xl border border-[#d4cebe]/60 dark:border-slate-700">
 
-                {/* PDF Preview */}
-                {selectedRegion && stats && (
-                    <>
-                        {/* Printable report content */}
-                        <div
-                            ref={reportRef}
-                            className="border-x border-[#d4cebe] bg-[#faf8f2] px-8 py-8 text-[#2d2a24]"
-                            style={{ fontFamily: 'system-ui, sans-serif' }}
-                        >
-                            {/* Report Header */}
-                            <div className="flex items-start justify-between mb-6 pb-5 border-b-2 border-[#d4cebe]">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-3 h-3 rounded-full bg-emerald-500" />
-                                        <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600">
-                                            Red Nacional de Monitoreo Oficial · SINCA/MMA · OpenAQ v3
-                                        </span>
-                                    </div>
-                                    <h1 className="text-2xl font-black text-[#1a1714] leading-tight">
-                                        Informe de Calidad del Aire
-                                    </h1>
-                                    <h2 className="text-lg font-bold text-emerald-600 mt-0.5">
-                                        {selectedRegion}
-                                    </h2>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-[10px] text-[#8c8273] font-medium">Generado el</p>
-                                    <p className="text-xs font-bold text-[#4a453c]">{now}</p>
-                                    <p className="text-[10px] text-[#8c8273] mt-2 font-medium">Total estaciones</p>
-                                    <p className="text-2xl font-black text-[#1a1714]">{regionStations.length}</p>
-                                </div>
-                            </div>
-
-                            {/* Summary cards */}
-                            <div className="mb-6">
-                                <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#8c8273] mb-3">
-                                    Distribución por Categoría ICA
-                                </h3>
-                                <div className="flex gap-4 items-center">
-                                    <DonutChart
-                                        size={110}
-                                        data={Object.entries(stats.categoryCounts)
-                                            .filter(([, count]) => count > 0)
-                                            .map(([label, count]) => ({
-                                                label,
-                                                count,
-                                                color: ICA_COLORS[label] ?? COLOR_SINDATOS,
-                                            }))}
-                                    />
-                                    <div className="flex-1 grid grid-cols-3 gap-2">
-                                        {Object.entries(stats.categoryCounts)
-                                            .filter(([, count]) => count > 0)
-                                            .map(([cat, count]) => (
-                                                <div
-                                                    key={cat}
-                                                    className="rounded-lg px-3 py-2.5"
-                                                    style={{ backgroundColor: `${ICA_COLORS[cat] ?? COLOR_SINDATOS}18`, border: `1.5px solid ${ICA_COLORS[cat] ?? COLOR_SINDATOS}40` }}
-                                                >
-                                                    <p
-                                                        className="text-[9px] font-black uppercase tracking-wider"
-                                                        style={{ color: ICA_COLORS[cat] ?? COLOR_SINDATOS }}
-                                                    >
-                                                        {cat}
-                                                    </p>
-                                                    <p className="text-xl font-black text-[#1a1714] mt-0.5">{count}</p>
-                                                    <p className="text-[9px] text-[#8c8273]">
-                                                        {count === 1 ? 'estación' : 'estaciones'}
-                                                    </p>
-                                                </div>
-                                            ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Pollutant bar charts */}
-                            <div className="mb-6">
-                                <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#8c8273] mb-3">
-                                    Concentración Promedio por Contaminante
-                                </h3>
-                                <BarChart
-                                    width={620}
-                                    height={130}
-                                    data={stats.pollutantStats.map((p) => {
-                                        const avg = p.avg !== null
-                                            ? (p.key === 'co' ? p.avg / 1000 : p.avg)
-                                            : null
-                                        const ica = avg !== null && avg >= 0
-                                            ? getICACategory(p.key === 'co' ? avg * 1000 : avg, p.key as any)
-                                            : null
-                                        return {
-                                            label: p.label,
-                                            value: avg,
-                                            unit: p.unit,
-                                            maxVal: p.key === 'co' ? 15 : (p as any).max,
-                                            color: ica?.color ?? COLOR_SINDATOS,
-                                        }
-                                    })}
-                                />
-                            </div>
-
-                            {/* Pollutant stats table */}
-                            <div className="mb-6">
-                                <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#8c8273] mb-3">
-                                    Estadísticas Detalladas
-                                </h3>
-                                <table className="w-full text-xs border-collapse">
-                                    <thead>
-                                        <tr className="bg-[#e4dec9]/50">
-                                            <th className="text-left px-3 py-2 font-bold text-[#6e685e] text-[10px] uppercase tracking-wider rounded-tl-lg">Contaminante</th>
-                                            <th className="text-right px-3 py-2 font-bold text-[#6e685e] text-[10px] uppercase tracking-wider">Promedio</th>
-                                            <th className="text-right px-3 py-2 font-bold text-[#6e685e] text-[10px] uppercase tracking-wider">Máximo</th>
-                                            <th className="text-right px-3 py-2 font-bold text-[#6e685e] text-[10px] uppercase tracking-wider">Mínimo</th>
-                                            <th className="text-center px-3 py-2 font-bold text-[#6e685e] text-[10px] uppercase tracking-wider">Estaciones</th>
-                                            <th className="text-center px-3 py-2 font-bold text-[#6e685e] text-[10px] uppercase tracking-wider rounded-tr-lg">Estado</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {stats.pollutantStats.map((p, i) => {
-                                            const isCO = p.key === 'co'
-                                            const avg = p.avg !== null ? (isCO ? p.avg / 1000 : p.avg) : null
-                                            const max = p.max !== null ? (isCO ? p.max / 1000 : p.max) : null
-                                            const min = p.min !== null ? (isCO ? p.min / 1000 : p.min) : null
-                                            const ica = avg !== null && avg >= 0
-                                                ? getICACategory(isCO ? avg * 1000 : avg, p.key as any)
-                                                : null
-                                            return (
-                                                <tr
-                                                    key={p.key}
-                                                    className={i % 2 === 0 ? 'bg-white/60' : 'bg-[#faf8f2]'}
-                                                    style={{ borderBottom: '1px solid #e4dec9' }}
-                                                >
-                                                    <td className="px-3 py-2.5 font-bold text-[#2d2a24]">{p.label}</td>
-                                                    <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-[#2d2a24]">
-                                                        {avg !== null ? `${avg < 10 ? avg.toFixed(2) : avg.toFixed(1)} ${p.unit}` : '—'}
-                                                    </td>
-                                                    <td className="px-3 py-2.5 text-right tabular-nums text-[#4a453c]">
-                                                        {max !== null ? `${max < 10 ? max.toFixed(2) : Math.round(max)} ${p.unit}` : '—'}
-                                                    </td>
-                                                    <td className="px-3 py-2.5 text-right tabular-nums text-[#4a453c]">
-                                                        {min !== null ? `${min < 10 ? min.toFixed(2) : Math.round(min)} ${p.unit}` : '—'}
-                                                    </td>
-                                                    <td className="px-3 py-2.5 text-center text-[#6e685e]">{p.count}</td>
-                                                    <td className="px-3 py-2.5 text-center">
-                                                        {ica ? (
-                                                            <span
-                                                                className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide"
-                                                                style={{
-                                                                    backgroundColor: ica.color,
-                                                                    color: ['Bueno', 'Regular'].includes(ica.categoria) ? '#1a1714' : '#fff',
-                                                                }}
-                                                            >
-                                                                {ica.categoria}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="text-[#8c8273] text-[9px]">Sin datos</span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            )
-                                        })}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Station list */}
-                            <div className="mb-4">
-                                <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#8c8273] mb-3">
-                                    Detalle de Estaciones ({regionStations.length})
-                                </h3>
-                                <div className="space-y-1.5">
-                                    {regionStations
-                                        .sort((a, b) => {
-                                            const ai = SEVERITY_ORDER.indexOf(getWorstICACategory(a)?.categoria ?? 'Sin datos')
-                                            const bi = SEVERITY_ORDER.indexOf(getWorstICACategory(b)?.categoria ?? 'Sin datos')
-                                            return bi - ai
-                                        })
-                                        .map((s) => {
-                                            const worst = getWorstICACategory(s)
-                                            return (
-                                                <div
-                                                    key={s.id}
-                                                    className="flex items-center gap-3 rounded-lg px-3 py-2"
-                                                    style={{
-                                                        backgroundColor: worst ? `${worst.color}10` : '#f0ede6',
-                                                        border: `1px solid ${worst ? worst.color + '30' : '#d4cebe'}`,
-                                                    }}
-                                                >
-                                                    <div
-                                                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                                        style={{ backgroundColor: worst?.color ?? COLOR_SINDATOS }}
-                                                    />
-                                                    <div className="flex-1 min-w-0">
-                                                        <span className="text-xs font-bold text-[#2d2a24] truncate">{s.nombre}</span>
-                                                        <span className="text-[10px] text-[#8c8273] ml-1.5">{s.locality}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 flex-shrink-0 text-[10px]">
-                                                        {(['pm25', 'pm10', 'so2', 'no2', 'o3', 'co'] as const).map((pk) => {
-                                                            const val = s[pk]
-                                                            if (typeof val !== 'number' || val < 0) return null
-                                                            const ica = getICACategory(val, pk)
-                                                            const display = pk === 'co' ? (val / 1000).toFixed(1) : Math.round(val)
-                                                            return (
-                                                                <span
-                                                                    key={pk}
-                                                                    className="px-1.5 py-0.5 rounded font-black tabular-nums"
-                                                                    style={{
-                                                                        backgroundColor: ica.color,
-                                                                        color: ['Bueno', 'Regular'].includes(ica.categoria) ? '#1a1714' : '#fff',
-                                                                        fontSize: '9px',
-                                                                    }}
-                                                                >
-                                                                    {display}
-                                                                </span>
-                                                            )
-                                                        })}
-                                                    </div>
-                                                    {worst && (
-                                                        <span
-                                                            className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full flex-shrink-0"
-                                                            style={{
-                                                                backgroundColor: worst.color,
-                                                                color: ['Bueno', 'Regular'].includes(worst.categoria) ? '#1a1714' : '#fff',
-                                                            }}
-                                                        >
-                                                            {worst.categoria}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )
-                                        })}
-                                </div>
-                            </div>
-
-                            {/* Footer */}
-                            <div className="mt-6 pt-4 border-t border-[#d4cebe] flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                    <span className="text-[9px] text-[#8c8273] font-medium">
-                                        Sistema de Monitoreo Calidad del Aire en Chile · Datos: SINCA/MMA vía OpenAQ v3
-                                    </span>
-                                </div>
-                                <span className="text-[9px] text-[#8c8273]">
-                                    Generado: {now}
+                    {/* Header */}
+                    <div className="bg-[#faf8f2] dark:bg-slate-900 px-6 py-5 flex items-center justify-between border-b border-[#d4cebe] dark:border-slate-800">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+                                    SINCA / MMA · OpenAQ v3
                                 </span>
                             </div>
-                        </div>
-
-                        {/* Action bar */}
-                        <div className="rounded-b-2xl border border-[#d4cebe] dark:border-slate-700 bg-[#faf8f2] dark:bg-slate-900 px-6 py-4 flex items-center justify-between">
-                            <p className="text-xs text-[#8c8273] dark:text-slate-500">
-                                Vista previa del informe · Se exportará como PDF
+                            <h2 className="text-lg font-black text-[#1a1714] dark:text-white">Informe de Calidad del Aire</h2>
+                            <p className="text-xs text-[#8c8273] dark:text-slate-400 mt-0.5">
+                                Genera un PDF con análisis regulatorio por región y comuna
                             </p>
-                            <button
-                                onClick={handleGeneratePDF}
-                                disabled={isGenerating}
-                                className="flex items-center gap-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-wait px-5 py-2.5 text-sm font-bold text-white transition-all shadow-lg shadow-emerald-600/20"
-                            >
-                                {isGenerating ? (
-                                    <>
-                                        <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                        </svg>
-                                        Generando… {progress}%
-                                    </>
-                                ) : (
-                                    <>
-                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                        Descargar PDF
-                                    </>
-                                )}
-                            </button>
                         </div>
-                    </>
-                )}
-
-                {!selectedRegion && (
-                    <div className="rounded-b-2xl border-x border-b border-[#d4cebe] dark:border-slate-700 bg-white/40 dark:bg-slate-950/40 px-6 py-12 text-center">
-                        <div className="w-12 h-12 rounded-2xl bg-[#e4dec9]/60 dark:bg-slate-800/60 flex items-center justify-center mx-auto mb-3">
-                            <svg className="h-6 w-6 text-[#8c8273] dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        <button onClick={onClose}
+                            className="rounded-xl border border-[#d4cebe] dark:border-slate-700 bg-white/60 dark:bg-slate-800 p-2 text-[#6e685e] dark:text-slate-400 hover:text-[#2d2a24] dark:hover:text-white transition-colors">
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
-                        </div>
-                        <p className="text-sm font-semibold text-[#6e685e] dark:text-slate-400">
-                            Selecciona una región para previsualizar y descargar su informe
-                        </p>
+                        </button>
                     </div>
-                )}
+
+                    {/* Region selector */}
+                    <div className="bg-white/60 dark:bg-slate-950/60 px-6 py-4 border-b border-[#d4cebe] dark:border-slate-800">
+                        <label className="block text-[10px] font-bold uppercase tracking-widest text-[#8c8273] dark:text-slate-400 mb-2">
+                            Seleccionar Región
+                        </label>
+                        <select value={selectedRegion} onChange={e => setSelectedRegion(e.target.value)}
+                            className="w-full rounded-xl border border-[#d4cebe] dark:border-slate-700 bg-[#faf8f2] dark:bg-slate-900 px-4 py-3 text-sm font-semibold text-[#2d2a24] dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 cursor-pointer appearance-none transition-all">
+                            <option value="">— Elige una región —</option>
+                            {regions.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                    </div>
+
+                    {/* Empty state */}
+                    {!selectedRegion && (
+                        <div className="bg-[#faf8f2]/40 dark:bg-slate-950/40 px-6 py-14 text-center">
+                            <div className="w-10 h-10 rounded-2xl bg-[#e4dec9]/60 dark:bg-slate-800 flex items-center justify-center mx-auto mb-3">
+                                <svg className="h-5 w-5 text-[#8c8273]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            </div>
+                            <p className="text-sm text-[#8c8273] dark:text-slate-500 font-medium">
+                                Selecciona una región para previsualizar el informe
+                            </p>
+                        </div>
+                    )}
+
+                    {/* ── PDF Preview ── */}
+                    {selectedRegion && stats && (
+                        <>
+                            <div className="bg-white/40 dark:bg-slate-950/40 px-4 py-3 border-b border-[#d4cebe] dark:border-slate-800 flex items-center justify-between">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-[#8c8273] dark:text-slate-500">
+                                    Vista previa del informe
+                                </span>
+                                <span className="text-[10px] text-[#8c8273] dark:text-slate-500">
+                                    {stats.withData} estaciones con datos · {stats.total - stats.withData} sin datos (excluidas)
+                                </span>
+                            </div>
+
+                            {/* ══ PRINTABLE REPORT ══ */}
+                            <div ref={reportRef} style={{
+                                background: '#faf8f2', fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+                                color: '#2d2a24', padding: '32px 36px',
+                            }}>
+
+                                {/* ── 1. Header ── */}
+                                <div style={{ borderBottom: '2.5px solid #00E5A3', paddingBottom: 18, marginBottom: 24 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                        <div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00E5A3' }} />
+                                                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: '#00E5A3', textTransform: 'uppercase' }}>
+                                                    Red Nacional de Monitoreo Oficial · SINCA/MMA · OpenAQ v3
+                                                </span>
+                                            </div>
+                                            <h1 style={{ fontSize: 22, fontWeight: 900, color: '#1a1714', margin: 0, lineHeight: 1.1 }}>
+                                                Informe de Calidad del Aire
+                                            </h1>
+                                            <h2 style={{ fontSize: 15, fontWeight: 700, color: '#00E5A3', margin: '4px 0 0' }}>
+                                                {selectedRegion}
+                                            </h2>
+                                            <p style={{ fontSize: 9, color: '#8c8273', margin: '6px 0 0' }}>{dateOnly}</p>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                            <div style={{
+                                                background: gecLevel ? ICA_COLORS[gecLevel] : '#e4dec9',
+                                                borderRadius: 10, padding: '8px 14px', display: 'inline-block'
+                                            }}>
+                                                <p style={{ fontSize: 8, fontWeight: 700, color: gecLevel ? '#fff' : '#8c8273', margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                                                    Nivel GEC
+                                                </p>
+                                                <p style={{ fontSize: 14, fontWeight: 900, color: gecLevel ? '#fff' : '#4a453c', margin: '2px 0 0' }}>
+                                                    {gecLevel ?? 'Normal'}
+                                                </p>
+                                            </div>
+                                            <div style={{ marginTop: 8 }}>
+                                                <p style={{ fontSize: 9, color: '#8c8273', margin: 0 }}>Estaciones con datos</p>
+                                                <p style={{ fontSize: 22, fontWeight: 900, color: '#1a1714', margin: 0 }}>{stats.withData}</p>
+                                                {stats.total - stats.withData > 0 && (
+                                                    <p style={{ fontSize: 8, color: '#8c8273', margin: 0 }}>
+                                                        +{stats.total - stats.withData} sin datos excluidas
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* GEC notice */}
+                                    {gecLevel && (
+                                        <div style={{
+                                            marginTop: 14, borderRadius: 8, padding: '8px 12px',
+                                            background: `${ICA_COLORS[gecLevel]}15`,
+                                            border: `1.5px solid ${ICA_COLORS[gecLevel]}50`,
+                                        }}>
+                                            <p style={{ fontSize: 9, margin: 0, color: '#4a453c', lineHeight: 1.5 }}>
+                                                <strong style={{ color: ICA_COLORS[gecLevel] }}>⚠ Episodio Crítico Activo — {gecLevel} Ambiental:</strong>{' '}
+                                                {gecLevel === 'Emergencia' && 'Situación de extremo riesgo para la salud pública. PM2.5 ≥ 170 µg/m³ (DS N°12/2011 MMA). Se prohíbe todo uso residencial de combustibles sólidos y paralizan múltiples industrias.'}
+                                                {gecLevel === 'Preemergencia' && 'Nivel de contaminación severa. PM2.5 entre 110–169 µg/m³ (DS N°12/2011 MMA). Se activan restricciones vehiculares adicionales y paralización industrial.'}
+                                                {gecLevel === 'Alerta' && 'Nivel inicial de resguardo preventivo. PM2.5 entre 80–109 µg/m³ (DS N°12/2011 MMA). Se restringe el uso residencial no certificado de leña.'}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* ── 2. Resumen ejecutivo ── */}
+                                <div style={{ marginBottom: 24 }}>
+                                    <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#8c8273', marginBottom: 10 }}>
+                                        Distribución por Categoría ICA
+                                    </p>
+                                    <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+                                        <DonutChart
+                                            size={100}
+                                            data={Object.entries(stats.categoryCounts)
+                                                .filter(([, c]) => c > 0)
+                                                .map(([label, count]) => ({ label, count, color: ICA_COLORS[label] ?? COLOR_SINDATOS }))}
+                                        />
+                                        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                                            {Object.entries(stats.categoryCounts).filter(([, c]) => c > 0).map(([cat, count]) => (
+                                                <div key={cat} style={{
+                                                    borderRadius: 10, padding: '8px 10px',
+                                                    background: `${ICA_COLORS[cat] ?? COLOR_SINDATOS}12`,
+                                                    border: `1.5px solid ${ICA_COLORS[cat] ?? COLOR_SINDATOS}35`,
+                                                }}>
+                                                    <p style={{ fontSize: 8, fontWeight: 900, color: ICA_COLORS[cat] ?? COLOR_SINDATOS, textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>{cat}</p>
+                                                    <p style={{ fontSize: 20, fontWeight: 900, color: '#1a1714', margin: '2px 0 0' }}>{count}</p>
+                                                    <p style={{ fontSize: 8, color: '#8c8273', margin: 0 }}>{count === 1 ? 'estación' : 'estaciones'}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ── 3. Contaminantes con límite legal ── */}
+                                <div style={{ marginBottom: 24 }}>
+                                    <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#8c8273', marginBottom: 12 }}>
+                                        Concentración Promedio por Contaminante
+                                    </p>
+                                    <div style={{ background: '#fff', borderRadius: 12, padding: '14px 16px', border: '1px solid #e4dec9' }}>
+                                        {stats.pollutantStats.map(p => {
+                                            const avg = p.avg !== null ? getDisplayVal(p.avg, p.key) : null
+                                            const ica = avg !== null ? getICACategory(p.isCO ? avg * 1000 : avg, p.key as any) : null
+                                            const limit = LEGAL_LIMITS[p.key]
+                                            return (
+                                                <HorizontalBar
+                                                    key={p.key}
+                                                    label={`${p.label} · Promedio ${p.count} estaciones`}
+                                                    value={avg}
+                                                    maxVal={limit.value * 1.8}
+                                                    color={ica?.color ?? COLOR_SINDATOS}
+                                                    legalLimit={limit.value}
+                                                    legalLabel={`Límite ${limit.value}${p.unit}`}
+                                                    unit={p.unit}
+                                                    decreto={avg !== null && avg > limit.value ? limit.decreto : undefined}
+                                                />
+                                            )
+                                        })}
+                                        <p style={{ fontSize: 8, color: '#8c8273', margin: '10px 0 0', fontStyle: 'italic' }}>
+                                            La línea roja punteada indica el límite normativo vigente para concentración de 24 horas.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* ── 4. Agrupación por comuna ── */}
+                                <div style={{ marginBottom: 24 }}>
+                                    <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#8c8273', marginBottom: 12 }}>
+                                        Detalle por Comuna
+                                    </p>
+                                    {stats.communes.map(commune => {
+                                        const color = ICA_COLORS[commune.worstCategory] ?? COLOR_SINDATOS
+                                        return (
+                                            <div key={commune.name} style={{
+                                                marginBottom: 10, borderRadius: 12, overflow: 'hidden',
+                                                border: `1.5px solid ${color}40`,
+                                            }}>
+                                                {/* Commune header */}
+                                                <div style={{
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                    padding: '8px 14px', background: `${color}12`,
+                                                }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                        <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                                                        <span style={{ fontSize: 12, fontWeight: 800, color: '#1a1714' }}>{commune.name}</span>
+                                                        <span style={{ fontSize: 9, color: '#8c8273' }}>{commune.stations.length} {commune.stations.length === 1 ? 'estación' : 'estaciones'}</span>
+                                                    </div>
+                                                    <span style={{
+                                                        fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.06em',
+                                                        background: color, color: ['Bueno', 'Regular'].includes(commune.worstCategory) ? '#1a1714' : '#fff',
+                                                        borderRadius: 20, padding: '3px 10px',
+                                                    }}>{commune.worstCategory}</span>
+                                                </div>
+                                                {/* Stations */}
+                                                {commune.stations
+                                                    .sort((a, b) => {
+                                                        const ai = SEVERITY_ORDER.indexOf(getWorstICACategory(a)?.categoria ?? 'Sin datos')
+                                                        const bi = SEVERITY_ORDER.indexOf(getWorstICACategory(b)?.categoria ?? 'Sin datos')
+                                                        return bi - ai
+                                                    })
+                                                    .map(s => {
+                                                        const worst = getWorstICACategory(s)
+                                                        return (
+                                                            <div key={s.id} style={{
+                                                                display: 'flex', alignItems: 'center', gap: 8,
+                                                                padding: '7px 14px', borderTop: '1px solid #e4dec9',
+                                                                background: '#fff',
+                                                            }}>
+                                                                <div style={{ width: 7, height: 7, borderRadius: '50%', background: worst?.color ?? COLOR_SINDATOS, flexShrink: 0 }} />
+                                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                                    <span style={{ fontSize: 10, fontWeight: 700, color: '#2d2a24' }}>{s.nombre}</span>
+                                                                </div>
+                                                                <div style={{ display: 'flex', gap: 4, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                                                    {POLLUTANTS.map(p => {
+                                                                        const val = s[p.key as keyof Station] as number | undefined | null
+                                                                        if (typeof val !== 'number' || val < 0) return null
+                                                                        const ica = getICACategory(val, p.key as any)
+                                                                        const display = getDisplayVal(val, p.key)
+                                                                        const over = exceedsLegal(val, p.key)
+                                                                        return (
+                                                                            <div key={p.key} style={{
+                                                                                background: ica.color,
+                                                                                borderRadius: 5, padding: '2px 5px',
+                                                                                display: 'flex', alignItems: 'center', gap: 3,
+                                                                                outline: over ? '1.5px solid #FF2E54' : 'none',
+                                                                                outlineOffset: 1,
+                                                                            }}>
+                                                                                <span style={{ fontSize: 7, color: ['Bueno', 'Regular'].includes(ica.categoria) ? '#1a1714' : '#fff', opacity: 0.8 }}>{p.label}</span>
+                                                                                <span style={{ fontSize: 9, fontWeight: 900, color: ['Bueno', 'Regular'].includes(ica.categoria) ? '#1a1714' : '#fff', fontVariantNumeric: 'tabular-nums' }}>
+                                                                                    {display < 10 ? display.toFixed(1) : Math.round(display)}
+                                                                                </span>
+                                                                            </div>
+                                                                        )
+                                                                    })}
+                                                                </div>
+                                                                {s.lastUpdated && (
+                                                                    <span style={{ fontSize: 8, color: '#8c8273', flexShrink: 0, marginLeft: 4 }}>
+                                                                        {new Date(s.lastUpdated).toLocaleString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )
+                                                    })}
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+
+                                {/* ── 5. Tabla de alertas regulatorias ── */}
+                                {stats.violations.length > 0 && (
+                                    <div style={{ marginBottom: 24 }}>
+                                        <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#8c8273', marginBottom: 10 }}>
+                                            Superaciones Normativa Vigente ({stats.violations.length})
+                                        </p>
+                                        <div style={{ borderRadius: 12, overflow: 'hidden', border: `1.5px solid ${COLOR_EMERGENCIA}40` }}>
+                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
+                                                <thead>
+                                                    <tr style={{ background: `${COLOR_EMERGENCIA}12` }}>
+                                                        {['Estación', 'Comuna', 'Parámetro', 'Valor', 'Decreto'].map(h => (
+                                                            <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 800, color: '#4a453c', fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
+                                                        ))}
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {stats.violations.map((v, i) => {
+                                                        const limit = LEGAL_LIMITS[POLLUTANTS.find(p => p.label === v.pollutant)?.key ?? '']
+                                                        const displayVal = v.pollutant === 'CO' ? (v.value / 1000).toFixed(2) + ' mg/m³' : Math.round(v.value) + ' µg/m³'
+                                                        return (
+                                                            <tr key={i} style={{ borderTop: '1px solid #fde8ea', background: i % 2 === 0 ? '#fff' : '#fff9f9' }}>
+                                                                <td style={{ padding: '6px 10px', fontWeight: 700, color: '#2d2a24' }}>{v.station}</td>
+                                                                <td style={{ padding: '6px 10px', color: '#6e685e' }}>{v.locality}</td>
+                                                                <td style={{ padding: '6px 10px', fontWeight: 700, color: COLOR_ALERTA }}>{v.pollutant}</td>
+                                                                <td style={{ padding: '6px 10px', fontWeight: 900, color: COLOR_EMERGENCIA, fontVariantNumeric: 'tabular-nums' }}>{displayVal}</td>
+                                                                <td style={{ padding: '6px 10px', color: '#8c8273', fontSize: 8 }}>{v.decreto}</td>
+                                                            </tr>
+                                                        )
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        <p style={{ fontSize: 8, color: '#8c8273', margin: '6px 0 0', fontStyle: 'italic' }}>
+                                            Los valores destacados superan los límites de concentración de 24h establecidos en la normativa chilena vigente y directrices OMS.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* ── 6. Footer ── */}
+                                <div style={{ borderTop: '1px solid #d4cebe', paddingTop: 12, marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                                    <div>
+                                        <p style={{ fontSize: 8, color: '#8c8273', margin: 0, lineHeight: 1.6 }}>
+                                            <strong>Fuente de datos:</strong> SINCA (Sistema de Información Nacional de Calidad del Aire), Ministerio del Medio Ambiente de Chile, a través de OpenAQ v3.<br />
+                                            <strong>Marco normativo:</strong> DS N°12/2021 MMA (MP10) · DS N°12/2011 MMA (MP2,5) · Plan GEC según PPDA vigente.<br />
+                                            <strong>Limitación:</strong> Los datos corresponden a mediciones en tiempo real y pueden contener lecturas inconsistentes o períodos sin telemetría. No reemplaza el informe oficial de la autoridad competente.
+                                        </p>
+                                    </div>
+                                    <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 16 }}>
+                                        <p style={{ fontSize: 8, color: '#8c8273', margin: 0 }}>Generado el</p>
+                                        <p style={{ fontSize: 9, fontWeight: 700, color: '#4a453c', margin: '1px 0 0' }}>{now}</p>
+                                    </div>
+                                </div>
+
+                            </div>
+                            {/* ══ END PRINTABLE ══ */}
+
+                            {/* Action bar */}
+                            <div className="bg-[#faf8f2] dark:bg-slate-900 px-6 py-4 border-t border-[#d4cebe] dark:border-slate-800 flex items-center justify-between">
+                                <div>
+                                    {isGenerating && (
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-1.5 w-40 bg-[#e4dec9] dark:bg-slate-800 rounded-full overflow-hidden">
+                                                <div className="h-full bg-emerald-500 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+                                            </div>
+                                            <span className="text-xs text-[#8c8273] dark:text-slate-400 tabular-nums">{progress}%</span>
+                                        </div>
+                                    )}
+                                    {!isGenerating && (
+                                        <p className="text-xs text-[#8c8273] dark:text-slate-500">
+                                            {stats.violations.length > 0
+                                                ? `⚠ ${stats.violations.length} superación${stats.violations.length > 1 ? 'es' : ''} normativa detectada${stats.violations.length > 1 ? 's' : ''}`
+                                                : 'Sin superaciones normativas detectadas'}
+                                        </p>
+                                    )}
+                                </div>
+                                <button onClick={handleGeneratePDF} disabled={isGenerating}
+                                    className="flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-wait px-5 py-2.5 text-sm font-bold text-white transition-all shadow-lg shadow-emerald-600/20">
+                                    {isGenerating ? (
+                                        <><svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Generando…</>
+                                    ) : (
+                                        <><svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>Descargar PDF</>
+                                    )}
+                                </button>
+                            </div>
+
+                        </>
+                    )}
+                </div>
             </div>
         </div>
     )
