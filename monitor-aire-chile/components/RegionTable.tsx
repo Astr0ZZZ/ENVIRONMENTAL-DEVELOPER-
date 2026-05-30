@@ -2,11 +2,11 @@
 
 import { useMemo, useState, useEffect } from 'react'
 import type { Station } from '@/types/openaq'
-import { getICACategory, getContrastTextColor } from '@/constants/ica-thresholds'
+import { getICACategory, getContrastTextColor, getWorstICACategory } from '@/constants/ica-thresholds'
 
 interface RegionTableProps {
   stations: Station[]
-  activePollutant: 'pm25' | 'pm10' | 'so2' | 'no2' | 'o3' | 'co'
+  activePollutant: 'pm25' | 'pm10' | 'so2' | 'no2' | 'o3' | 'co' | 'all'
   onSelectStation?: (station: Station) => void
   searchQuery?: string
 }
@@ -122,17 +122,20 @@ export function RegionTable({ stations, activePollutant, onSelectStation, search
       const row = map.get(s.region)!
       row.stations.push(s)
 
-      const val = s[activePollutant]
-      if (typeof val === 'number' && val >= 0) {
-        const ica = getICACategory(val, activePollutant)
+      const isAll = activePollutant === 'all'
+      const val = isAll ? null : s[activePollutant]
+      const ica = isAll ? getWorstICACategory(s) : (typeof val === 'number' && val >= 0 ? getICACategory(val, activePollutant as any) : null)
+      if (ica) {
         const idx = SEVERITY_ORDER.indexOf(ica.categoria)
         if (idx > row.worstIndex) {
           row.worstIndex = idx
           row.worstCategory = ica.categoria
           row.worstColor = ica.color
         }
-        row.activeMax =
-          row.activeMax === null ? val : Math.max(row.activeMax, val)
+        if (!isAll && typeof val === 'number') {
+          row.activeMax =
+            row.activeMax === null ? val : Math.max(row.activeMax, val)
+        }
       }
     }
 
@@ -315,11 +318,13 @@ export function RegionTable({ stations, activePollutant, onSelectStation, search
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums font-bold text-[#2d2a24] dark:text-slate-200">
-                    {row.activeMax !== null 
-                      ? (activePollutant === 'co' 
-                        ? `${(row.activeMax / 1000).toFixed(2)} mg/m³` 
-                        : `${Math.round(row.activeMax)} µg/m³`)
-                      : '—'}
+                    {activePollutant === 'all'
+                      ? 'N/A'
+                      : (row.activeMax !== null 
+                        ? (activePollutant === 'co' 
+                          ? `${(row.activeMax / 1000).toFixed(2)} mg/m³` 
+                          : `${Math.round(row.activeMax)} µg/m³`)
+                        : '—')}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <span
@@ -440,9 +445,12 @@ export function RegionTable({ stations, activePollutant, onSelectStation, search
                                       {/* Indicador semáforo */}
                                       <div className="flex items-center justify-center sm:w-6">
                                         {(() => {
-                                          const activeVal = s[activePollutant]
-                                          if (typeof activeVal === 'number' && activeVal >= 0) {
-                                            const activeIca = getICACategory(activeVal, activePollutant)
+                                          const isAll = activePollutant === 'all'
+                                          const activeVal = isAll ? null : s[activePollutant]
+                                          const activeIca = isAll
+                                            ? getWorstICACategory(s)
+                                            : (typeof activeVal === 'number' && activeVal >= 0 ? getICACategory(activeVal, activePollutant as any) : null)
+                                          if (activeIca) {
                                             return (
                                               <span
                                                 className="inline-block h-3.5 w-3.5 rounded-full"

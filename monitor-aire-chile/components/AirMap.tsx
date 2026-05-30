@@ -5,11 +5,11 @@ import { MapContainer, TileLayer, Marker, Rectangle, Circle, Popup, useMap, Zoom
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import type { Station } from '@/types/openaq'
-import { getICACategory } from '@/constants/ica-thresholds'
+import { getICACategory, getWorstICACategory } from '@/constants/ica-thresholds'
 
 interface AirMapProps {
   stations: Station[]
-  activePollutant: 'pm25' | 'pm10' | 'so2' | 'no2' | 'o3' | 'co'
+  activePollutant: 'pm25' | 'pm10' | 'so2' | 'no2' | 'o3' | 'co' | 'all'
   center?: [number, number]
   zoom?: number
   onSelectStation?: (station: Station) => void
@@ -283,9 +283,14 @@ export function AirMap({
         )}
 
         {validStations.map((station) => {
-          const val = station[activePollutant]
-          const hasVal = typeof val === 'number' && val >= 0
-          const ica = hasVal ? getICACategory(val, activePollutant) : null
+          const isAll = activePollutant === 'all'
+          const val = isAll ? null : station[activePollutant]
+          const hasVal = isAll
+            ? ['pm25', 'pm10', 'so2', 'no2', 'o3', 'co'].some(key => typeof station[key as keyof Station] === 'number' && (station[key as keyof Station] as number) >= 0)
+            : typeof val === 'number' && val >= 0
+          const ica = isAll
+            ? getWorstICACategory(station)
+            : (hasVal ? getICACategory(val as number, activePollutant as any) : null)
           const fillColor = ica?.color ?? '#64748b'
           const categoria = ica?.categoria ?? 'Sin Datos'
 
@@ -311,7 +316,9 @@ export function AirMap({
 
           // Format value for popup
           let displayValue = '—'
-          if (hasVal) {
+          if (isAll) {
+            displayValue = 'Índice Global'
+          } else if (hasVal) {
             displayValue = activePollutant === 'co'
               ? `${((val as number) / 1000).toFixed(1)} mg/m³`
               : `${Math.round(val as number)} µg/m³`
@@ -327,7 +334,7 @@ export function AirMap({
             { label: 'CO', value: station.co, key: 'co' },
           ].filter(
             (p): p is { label: string; value: number; key: string } =>
-              p.key !== activePollutant &&
+              (isAll || p.key !== activePollutant) &&
               typeof p.value === 'number' &&
               p.value >= 0
           )
@@ -366,7 +373,7 @@ export function AirMap({
                               }}
                             />
                             <span className="text-xs font-black uppercase tracking-wider" style={{ color: fillColor }}>
-                              {ica.categoria} ({activePollutant.toUpperCase()})
+                              {ica.categoria} {isAll ? '(ÍNDICE GLOBAL)' : `(${activePollutant.toUpperCase()})`}
                             </span>
                           </div>
                           <p className="text-xs leading-relaxed text-[#4a453c] dark:text-slate-300">
@@ -376,7 +383,7 @@ export function AirMap({
                           {/* Active value */}
                           <div className="rounded-lg bg-[#faf8f2]/80 dark:bg-slate-900/60 border border-[#d4cebe]/50 dark:border-slate-800/40 p-2.5">
                             <p className="text-[9px] font-bold text-[#8c8273] dark:text-slate-500 uppercase tracking-wider">
-                              Concentración Actual de {activePollutant.toUpperCase()}
+                              {isAll ? 'Estado de Calidad General' : `Concentración Actual de ${activePollutant.toUpperCase()}`}
                             </p>
                             <p className="text-sm font-black text-[#1e1b18] dark:text-white tabular-nums">
                               {displayValue}
@@ -387,7 +394,7 @@ export function AirMap({
                           {otherPollutants.length > 0 && (
                             <div className="space-y-1.5 border-t border-[#d4cebe] dark:border-slate-800/60 pt-2.5">
                               <p className="text-[9px] font-bold text-[#8c8273] dark:text-slate-500 uppercase tracking-wider">
-                                Otros Sensores
+                                {isAll ? 'Mediciones Disponibles' : 'Otros Sensores'}
                               </p>
                               <div className="grid grid-cols-2 gap-1.5 text-[11px]">
                                 {otherPollutants.map((p) => {
@@ -413,7 +420,7 @@ export function AirMap({
                         </>
                       ) : (
                         <p className="text-xs text-[#8c8273] dark:text-slate-400 leading-relaxed">
-                          Estación activa. Los datos para {activePollutant.toUpperCase()} no están disponibles temporalmente.
+                          Estación activa. Los datos para {isAll ? 'los contaminantes' : activePollutant.toUpperCase()} no están disponibles temporalmente.
                         </p>
                       )}
                     </div>

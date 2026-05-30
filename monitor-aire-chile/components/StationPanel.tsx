@@ -66,7 +66,7 @@ const pollutantInfo = {
 
 interface StationPanelProps {
   station: Station | null
-  activePollutant: 'pm25' | 'pm10' | 'so2' | 'no2' | 'o3' | 'co'
+  activePollutant: 'pm25' | 'pm10' | 'so2' | 'no2' | 'o3' | 'co' | 'all'
   onClose: () => void
 }
 
@@ -93,9 +93,9 @@ export function StationPanel({ station, activePollutant, onClose }: StationPanel
   useEffect(() => {
     if (station && availablePollutants.length > 0) {
       // Intentar seleccionar el contaminante activo de la estación si está disponible
-      const hasActive = availablePollutants.some(p => p.key === activePollutant)
+      const hasActive = activePollutant !== 'all' && availablePollutants.some(p => p.key === activePollutant)
       if (hasActive) {
-        setSelectedPollutant(activePollutant)
+        setSelectedPollutant(activePollutant as any)
       } else {
         setSelectedPollutant(availablePollutants[0].key)
       }
@@ -122,14 +122,16 @@ export function StationPanel({ station, activePollutant, onClose }: StationPanel
   if (!station) return null
 
   // Calcular el ICA prioritario
-  const activeVal = station[activePollutant]
-  const hasActiveVal = typeof activeVal === 'number' && activeVal >= 0
+  const isAll = activePollutant === 'all'
+  type PollutantKey = 'pm25' | 'pm10' | 'so2' | 'no2' | 'o3' | 'co'
+  const activeVal = isAll ? null : station[activePollutant as PollutantKey]
+  const hasActiveVal = !isAll && typeof activeVal === 'number' && activeVal >= 0
 
   const fallbackPollutantObj = availablePollutants[0]
   const fallbackPollutant = fallbackPollutantObj?.key
 
-  const mainPollutant = hasActiveVal ? activePollutant : fallbackPollutant
-  const mainValue = mainPollutant ? (station[mainPollutant] as number) : null
+  const mainPollutant = hasActiveVal ? (activePollutant as PollutantKey) : fallbackPollutant
+  const mainValue = mainPollutant ? (station[mainPollutant as PollutantKey] as number) : null
 
   const ica = (mainPollutant && typeof mainValue === 'number')
     ? getICACategory(mainValue, mainPollutant)

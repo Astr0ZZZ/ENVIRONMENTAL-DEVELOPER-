@@ -106,3 +106,25 @@ export function getICACategory(
     descripcion: last.descripcion,
   }
 }
+
+export function getWorstICACategory(station: any): ICAResult | null {
+  const pollutants: ('pm25' | 'pm10' | 'so2' | 'no2' | 'o3' | 'co')[] = ['pm25', 'pm10', 'so2', 'no2', 'o3', 'co']
+  let worstIca: ICAResult | null = null
+  const order = ['Bueno', 'Regular', 'Alerta', 'Preemergencia', 'Emergencia']
+
+  for (const p of pollutants) {
+    const val = station[p]
+    if (typeof val === 'number' && val >= 0) {
+      const ica = getICACategory(val, p)
+      if (!worstIca || order.indexOf(ica.categoria) > order.indexOf(worstIca.categoria)) {
+        worstIca = {
+          valor: ica.valor,
+          categoria: ica.categoria,
+          color: ica.color,
+          descripcion: `Calidad de aire determinada por el peor contaminante registrado (${p.toUpperCase()})`
+        }
+      }
+    }
+  }
+  return worstIca
+}

@@ -12,7 +12,8 @@ import {
   COLOR_ALERTA, 
   COLOR_PREEMERGENCIA, 
   COLOR_EMERGENCIA,
-  COLOR_SINDATOS
+  COLOR_SINDATOS,
+  getWorstICACategory
 } from '@/constants/ica-thresholds'
 
 interface DashboardProps {
@@ -52,7 +53,7 @@ export function Dashboard({ stations }: DashboardProps) {
   const [selectedLocality, setSelectedLocality] = useState<string>('Todas')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedStation, setSelectedStation] = useState<Station | null>(null)
-  const [activePollutant, setActivePollutant] = useState<'pm25' | 'pm10' | 'so2' | 'no2' | 'o3' | 'co'>('pm25')
+  const [activePollutant, setActivePollutant] = useState<'pm25' | 'pm10' | 'so2' | 'no2' | 'o3' | 'co' | 'all'>('pm25')
   
   // Guided tour state
   const [tourStep, setTourStep] = useState<number | null>(null)
@@ -335,9 +336,14 @@ export function Dashboard({ stations }: DashboardProps) {
         normalizeSearch(s.nombre).includes(q)
 
       // Top Buttons (ICA category) filter & standard "Sin Datos" exclusion
-      const val = s[activePollutant]
-      const hasVal = typeof val === 'number' && val >= 0
-      const ica = hasVal ? getICACategory(val, activePollutant) : null
+      const isAll = activePollutant === 'all'
+      const val = isAll ? null : s[activePollutant]
+      const hasVal = isAll
+        ? ['pm25', 'pm10', 'so2', 'no2', 'o3', 'co'].some(key => typeof s[key as keyof Station] === 'number' && (s[key as keyof Station] as number) >= 0)
+        : typeof val === 'number' && val >= 0
+      const ica = isAll
+        ? getWorstICACategory(s)
+        : (hasVal ? getICACategory(val as number, activePollutant as any) : null)
       
       let matchesIca = true
       if (activeIcaFilter) {
@@ -410,11 +416,11 @@ export function Dashboard({ stations }: DashboardProps) {
         continue
       }
 
-      const val = s[activePollutant]
-      const ica =
-        typeof val === 'number' && val >= 0
-          ? getICACategory(val, activePollutant)
-          : null
+      const isAll = activePollutant === 'all'
+      const val = isAll ? null : s[activePollutant]
+      const ica = isAll
+        ? getWorstICACategory(s)
+        : (typeof val === 'number' && val >= 0 ? getICACategory(val as number, activePollutant as any) : null)
 
       if (!ica) {
         // Has data for other pollutants, but not this one. Don't count as Sin Datos
@@ -553,6 +559,7 @@ export function Dashboard({ stations }: DashboardProps) {
             <div className={`${isMinimizedPollutant ? 'overflow-hidden' : 'overflow-visible'}`}>
               <div className="grid grid-cols-2 gap-2 mt-3 rounded-xl bg-white/85 dark:bg-slate-900/60 p-1.5 border border-[#d4cebe]/70 dark:border-slate-800/80 shadow-inner sm:flex sm:flex-wrap sm:gap-2">
                 {[
+                  { key: 'all', label: 'Todos', desc: 'Peor índice activo (ICA)' },
                   { key: 'pm25', label: 'PM2.5', desc: 'Material Fino (µg/m³)' },
                   { key: 'pm10', label: 'PM10', desc: 'Material Grueso (µg/m³)' },
                   { key: 'so2', label: 'SO₂', desc: 'Dióxido Azufre (µg/m³)' },
@@ -703,8 +710,11 @@ export function Dashboard({ stations }: DashboardProps) {
                       </div>
                       <div className="mt-1 space-y-0.5">
                         {group.stations.map((s) => {
-                          const val = s[activePollutant]
-                          const ica = typeof val === 'number' && val >= 0 ? getICACategory(val, activePollutant) : null
+                          const isAll = activePollutant === 'all'
+                          const val = isAll ? null : s[activePollutant]
+                          const ica = isAll
+                            ? getWorstICACategory(s)
+                            : (typeof val === 'number' && val >= 0 ? getICACategory(val as number, activePollutant as any) : null)
                           return (
                             <button
                               key={s.id}
@@ -717,10 +727,10 @@ export function Dashboard({ stations }: DashboardProps) {
                               className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs text-[#4a453c] dark:text-slate-300 transition-colors hover:bg-[#faf6eb] dark:hover:bg-slate-900/60"
                             >
                               <span className="font-medium">{s.nombre}</span>
-                              {ica && typeof val === 'number' ? (
+                              {ica ? (
                                 <div className="flex items-center gap-2">
                                   <span className="text-[10px] font-bold" style={{ color: ica.color }}>
-                                    {activePollutant === 'co' ? `${(val / 1000).toFixed(1)} mg/m³` : `${Math.round(val)} µg/m³`}
+                                    {isAll ? ica.categoria : (activePollutant === 'co' ? `${((val as number) / 1000).toFixed(1)} mg/m³` : `${Math.round(val as number)} µg/m³`)}
                                   </span>
                                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: ica.color }} />
                                 </div>
