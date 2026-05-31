@@ -89,13 +89,13 @@ function exceedsLegal(val: number, key: string): boolean {
     return display > limit.value
 }
 
-function getStationGECLevel(s: Station): string {
+function getStationGECLevel(s: Station): { level: string, isFallback: boolean } {
     const pm25 = s.pm25Avg24h
     const pm10 = s.pm10Avg24h
     
     // Fallback a peor categoría instantánea si no hay promedios 24h
     if ((pm25 === undefined || pm25 === null) && (pm10 === undefined || pm10 === null)) {
-        return getWorstICACategory(s)?.categoria ?? 'Bueno'
+        return { level: getWorstICACategory(s)?.categoria ?? 'Bueno', isFallback: true }
     }
     
     let pm25Lvl = 'Bueno'
@@ -120,23 +120,28 @@ function getStationGECLevel(s: Station): string {
 
     // Si de verdad no se pudo calcular ninguno de los dos promedios móviles horariados, fallback al peor instantáneo
     if (!hasPm25 && !hasPm10) {
-        return getWorstICACategory(s)?.categoria ?? 'Bueno'
+        return { level: getWorstICACategory(s)?.categoria ?? 'Bueno', isFallback: true }
     }
     
     const order = ['Bueno', 'Regular', 'Alerta', 'Preemergencia', 'Emergencia']
-    return order.indexOf(pm25Lvl) > order.indexOf(pm10Lvl) ? pm25Lvl : pm10Lvl
+    return { level: order.indexOf(pm25Lvl) > order.indexOf(pm10Lvl) ? pm25Lvl : pm10Lvl, isFallback: false }
 }
 
-function getRegionGECLevel(stns: Station[]): string | null {
+function getRegionGECLevel(stns: Station[]): { level: string, isFallback: boolean } | null {
     let worst: string | null = null
+    let isFallback = true
     const order = ['Bueno', 'Regular', 'Alerta', 'Preemergencia', 'Emergencia']
     for (const s of stns) {
-        const lvl = getStationGECLevel(s)
-        if (lvl && (!worst || order.indexOf(lvl) > order.indexOf(worst))) {
-            worst = lvl
+        const res = getStationGECLevel(s)
+        if (res.level && (!worst || order.indexOf(res.level) > order.indexOf(worst))) {
+            worst = res.level
+            isFallback = res.isFallback
+        } else if (res.level === worst && !res.isFallback) {
+            isFallback = false
         }
     }
-    return worst
+    if (!worst) return null
+    return { level: worst, isFallback }
 }
 
 function getRegionSpecificRestrictions(region: string, level: string): string | null {
@@ -193,12 +198,33 @@ function computeRegionStats(stns: Station[]) {
     }
 
     const pollutantStats = POLLUTANTS.map(p => {
-        const vals = withData
-            .map(s => s[p.key as keyof Station] as number | undefined | null)
-            .filter((v): v is number => typeof v === 'number' && v >= 0)
-        if (!vals.length) return { ...p, avg: null, max: null, min: null, count: 0 }
+        const is24h = p.key === 'pm25' || p.key === 'pm10';
+        let vals: number[] = [];
+        let fallbackCount = 0;
+        
+        for (const s of withData) {
+            if (is24h) {
+                const avgVal = p.key === 'pm25' ? s.pm25Avg24h : s.pm10Avg24h;
+                if (typeof avgVal === 'number' && avgVal >= 0) {
+                    vals.push(avgVal);
+                } else {
+                    const instVal = s[p.key as keyof Station] as number | undefined | null;
+                    if (typeof instVal === 'number' && instVal >= 0) {
+                        vals.push(instVal);
+                        fallbackCount++;
+                    }
+                }
+            } else {
+                const val = s[p.key as keyof Station] as number | undefined | null;
+                if (typeof val === 'number' && val >= 0) {
+                    vals.push(val);
+                }
+            }
+        }
+        
+        if (!vals.length) return { ...p, avg: null, max: null, min: null, count: 0, fallbackCount: 0 }
         const avg = vals.reduce((a, b) => a + b, 0) / vals.length
-        return { ...p, avg, max: Math.max(...vals), min: Math.min(...vals), count: vals.length }
+        return { ...p, avg, max: Math.max(...vals), min: Math.min(...vals), count: vals.length, fallbackCount }
     }).filter(p => p.count > 0)
 
     // Communes grouping
@@ -369,7 +395,9 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
     const regions = Array.from(new Set(stations.map(s => s.region))).sort()
     const regionStations = selectedRegion ? stations.filter(s => s.region === selectedRegion) : []
     const stats = selectedRegion ? computeRegionStats(regionStations) : null
-    const gecLevel = selectedRegion ? getRegionGECLevel(regionStations.filter(hasAnyData)) : null
+    const gecLevelObj = selectedRegion ? getRegionGECLevel(regionStations.filter(hasAnyData)) : null
+    const gecLevel = gecLevelObj?.level ?? null
+    const gecIsFallback = gecLevelObj?.isFallback ?? false
 
     const severityOrder = useMemo(() => ['Bueno', 'Regular', 'Alerta', 'Preemergencia', 'Emergencia'], [])
     const activeRegionStations = useMemo(() => regionStations.filter(hasAnyData), [regionStations])
@@ -560,7 +588,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                                 borderRadius: 10, padding: '8px 14px', display: 'inline-block'
                                             }}>
                                                 <p style={{ fontSize: 8, fontWeight: 700, color: gecLevel ? '#fff' : '#8c8273', margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                                                    Recomendación GEC
+                                                    {gecIsFallback ? 'Nivel ICA (Estimación)' : 'Recomendación GEC'}
                                                 </p>
                                                 <p style={{ fontSize: 14, fontWeight: 900, color: gecLevel ? '#fff' : '#4a453c', margin: '2px 0 0' }}>
                                                     {gecLevel ?? 'Normal'}
@@ -585,10 +613,10 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                             border: `1.5px solid ${ICA_COLORS[gecLevel]}50`,
                                         }}>
                                             <p style={{ fontSize: 9, margin: 0, color: '#4a453c', lineHeight: 1.5 }}>
-                                                <strong style={{ color: ICA_COLORS[gecLevel] }}>⚠️ Recomendación GEC — {gecLevel} (Móvil 24h / Fallback):</strong>{' '}
-                                                {gecLevel === 'Emergencia' && 'Situación de extremo riesgo para la salud pública. Basado en superación de umbrales oficiales de promedio móvil de 24 horas (PM2.5 ≥ 170 µg/m³ o PM10 ≥ 330 µg/m³).'}
-                                                {gecLevel === 'Preemergencia' && 'Nivel de contaminación severa. Basado en superación de umbrales oficiales de promedio móvil de 24 horas (PM2.5 110-169 µg/m³ o PM10 240-329 µg/m³).'}
-                                                {gecLevel === 'Alerta' && 'Nivel inicial de resguardo preventivo. Basado en superación de umbrales oficiales de promedio móvil de 24 horas (PM2.5 80-109 µg/m³ o PM10 195-239 µg/m³).'}
+                                                <strong style={{ color: ICA_COLORS[gecLevel] }}>⚠️ {gecIsFallback ? 'Nivel ICA (Estimación)' : 'Recomendación GEC'} — {gecLevel} {gecIsFallback ? '(Instantáneo / Fallback)' : '(Móvil 24h)'}:</strong>{' '}
+                                                {gecLevel === 'Emergencia' && 'Situación de extremo riesgo para la salud pública. Basado en superación de umbrales.'}
+                                                {gecLevel === 'Preemergencia' && 'Nivel de contaminación severa. Basado en superación de umbrales.'}
+                                                {gecLevel === 'Alerta' && 'Nivel inicial de resguardo preventivo. Basado en superación de umbrales.'}
                                             </p>
                                             {getRegionSpecificRestrictions(selectedRegion, gecLevel) && (
                                                 <p style={{ fontSize: 9, margin: '6px 0 0 0', color: '#2d2a24', lineHeight: 1.5, borderTop: '1px solid #d4cebe', paddingTop: 6 }}>
@@ -637,10 +665,15 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                             const avg = p.avg !== null ? getDisplayVal(p.avg, p.key) : null
                                             const ica = avg !== null ? getICACategory(p.isCO ? avg * 1000 : avg, p.key as any) : null
                                             const limit = LEGAL_LIMITS[p.key]
+                                            const is24h = p.key === 'pm25' || p.key === 'pm10';
+                                            const subLabel = is24h 
+                                                ? (p.fallbackCount > 0 ? `(${p.count - p.fallbackCount} de ${p.count} con datos 24h, resto estimación)` : '(Móvil 24h)') 
+                                                : '(Instantáneo)';
+
                                             return (
                                                 <HorizontalBar
                                                     key={p.key}
-                                                    label={`${p.label} · Promedio ${p.count} estaciones`}
+                                                    label={`${p.label} · Promedio ${p.count} est. ${subLabel}`}
                                                     value={avg}
                                                     maxVal={limit.value * 1.8}
                                                     color={ica?.color ?? COLOR_SINDATOS}
