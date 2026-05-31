@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
 import type { Station } from '@/types/openaq'
 import {
     getICACategory,
@@ -238,6 +238,33 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
     const stats = selectedRegion ? computeRegionStats(regionStations) : null
     const gecLevel = selectedRegion ? getRegionGECLevel(regionStations.filter(hasAnyData)) : null
 
+    const severityOrder = useMemo(() => ['Bueno', 'Regular', 'Alerta', 'Preemergencia', 'Emergencia'], [])
+    const activeRegionStations = useMemo(() => regionStations.filter(hasAnyData), [regionStations])
+    const sortedStationsData = useMemo(() => {
+        return activeRegionStations.map(s => {
+            const worstCat = getWorstICACategory(s)
+            const catLabel = worstCat?.categoria ?? 'Sin datos'
+            
+            const gases: string[] = []
+            if (typeof s.so2 === 'number' && s.so2 >= 0) gases.push(`SO₂: ${Math.round(s.so2)}`)
+            if (typeof s.no2 === 'number' && s.no2 >= 0) gases.push(`NO₂: ${Math.round(s.no2)}`)
+            if (typeof s.o3 === 'number' && s.o3 >= 0) gases.push(`O₃: ${Math.round(s.o3)}`)
+            if (typeof s.co === 'number' && s.co >= 0) gases.push(`CO: ${(s.co / 1000).toFixed(1)}`)
+            const gasesStr = gases.length > 0 ? gases.join(', ') : '—'
+
+            return {
+                station: s.nombre,
+                locality: s.locality,
+                catLabel,
+                pm25: typeof s.pm25 === 'number' ? `${Math.round(s.pm25)} µg/m³` : '—',
+                pm10: typeof s.pm10 === 'number' ? `${Math.round(s.pm10)} µg/m³` : '—',
+                gasesStr
+            }
+        }).sort((a, b) => {
+            return severityOrder.indexOf(b.catLabel) - severityOrder.indexOf(a.catLabel)
+        })
+    }, [activeRegionStations, severityOrder])
+
     const now = new Date().toLocaleString('es-CL', {
         day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
     })
@@ -249,7 +276,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
         setProgress(10)
         try {
             const { jsPDF } = await import('jspdf')
-            await import('jspdf-autotable')
+            const autoTable = (await import('jspdf-autotable')).default
             setProgress(25)
 
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
@@ -424,8 +451,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
             }
 
             // ── SECCIÓN: Análisis Comparativo y Clúster de Estaciones ──
-            const activeRegionStations = regionStations.filter(hasAnyData)
-            if (activeRegionStations.length > 0) {
+            if (sortedStationsData.length > 0) {
                 checkPage(25)
                 doc.setFont('helvetica', 'bold')
                 doc.setFontSize(8)
@@ -433,31 +459,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                 doc.text('DETALLE COMPARATIVO DE ESTACIONES EN LA REGIÓN', mL, y)
                 y += 4
 
-                const severityOrder = ['Bueno', 'Regular', 'Alerta', 'Preemergencia', 'Emergencia']
-                const sortedStationsData = activeRegionStations.map(s => {
-                    const worstCat = getWorstICACategory(s)
-                    const catLabel = worstCat?.categoria ?? 'Sin datos'
-                    
-                    const gases: string[] = []
-                    if (typeof s.so2 === 'number' && s.so2 >= 0) gases.push(`SO₂: ${Math.round(s.so2)}`)
-                    if (typeof s.no2 === 'number' && s.no2 >= 0) gases.push(`NO₂: ${Math.round(s.no2)}`)
-                    if (typeof s.o3 === 'number' && s.o3 >= 0) gases.push(`O₃: ${Math.round(s.o3)}`)
-                    if (typeof s.co === 'number' && s.co >= 0) gases.push(`CO: ${(s.co / 1000).toFixed(1)}`)
-                    const gasesStr = gases.length > 0 ? gases.join(', ') : '—'
-
-                    return {
-                        station: s.nombre,
-                        locality: s.locality,
-                        catLabel,
-                        pm25: typeof s.pm25 === 'number' ? `${Math.round(s.pm25)} µg/m³` : '—',
-                        pm10: typeof s.pm10 === 'number' ? `${Math.round(s.pm10)} µg/m³` : '—',
-                        gasesStr
-                    }
-                }).sort((a, b) => {
-                    return severityOrder.indexOf(b.catLabel) - severityOrder.indexOf(a.catLabel)
-                })
-
-                ;(doc as any).autoTable({
+                autoTable(doc, {
                     startY: y,
                     head: [['Estación', 'Comuna', 'Estado ICA', 'MP2.5', 'MP10', 'Gases']],
                     body: sortedStationsData.map(d => [
@@ -507,7 +509,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                 doc.text(`SUPERACIONES NORMATIVA VIGENTE (${stats.violations.length})`, mL, y)
                 y += 4
 
-                ;(doc as any).autoTable({
+                autoTable(doc, {
                     startY: y,
                     head: [['Estación', 'Comuna', 'Parámetro', 'Valor medido', 'Decreto']],
                     body: stats.violations.map(v => {
