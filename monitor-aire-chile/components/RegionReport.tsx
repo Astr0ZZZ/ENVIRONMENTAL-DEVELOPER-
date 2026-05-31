@@ -533,7 +533,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                         </label>
                         <select value={selectedRegion} onChange={e => setSelectedRegion(e.target.value)}
                             className="w-full rounded-xl border border-[#d4cebe] dark:border-slate-700 bg-[#faf8f2] dark:bg-slate-900 px-4 py-3 text-sm font-semibold text-[#2d2a24] dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 cursor-pointer appearance-none transition-all">
-                            <option value="">â€” Elige una región â€”</option>
+                            <option value="">— Elige una región —</option>
                             {regions.map(r => <option key={r} value={r}>{r}</option>)}
                         </select>
                     </div>
