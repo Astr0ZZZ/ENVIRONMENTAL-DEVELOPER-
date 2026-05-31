@@ -67,20 +67,25 @@ interface CacheData {
   stations: Record<string, CacheStationData>
 }
 
-// Fallback en memoria si falla la escritura en disco (ej. en serverless read-only)
-let memoryCacheFallback: CacheData = {
-  lastGlobalUpdate: 0,
-  stations: {}
-}
+// Fallback en memoria para mantener el estado durante el ciclo de vida del contenedor (serverless)
+let memoryCacheFallback: CacheData | null = null
 
 function readCache(): CacheData {
+  if (memoryCacheFallback) return memoryCacheFallback
+
   try {
     if (fs.existsSync(CACHE_FILE_PATH)) {
       const content = fs.readFileSync(CACHE_FILE_PATH, 'utf-8')
-      return JSON.parse(content)
+      memoryCacheFallback = JSON.parse(content)
+      return memoryCacheFallback!
     }
   } catch (err) {
     console.warn('[openaq] Error leyendo archivo de caché, usando caché en memoria:', err)
+  }
+  
+  memoryCacheFallback = {
+    lastGlobalUpdate: 0,
+    stations: {}
   }
   return memoryCacheFallback
 }
@@ -90,7 +95,8 @@ function writeCache(data: CacheData) {
   try {
     fs.writeFileSync(CACHE_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8')
   } catch (err) {
-    console.warn('[openaq] Error escribiendo archivo de caché:', err)
+    // Se silencia el error en Vercel (file system read-only)
+    // console.warn('[openaq] Error escribiendo archivo de caché:', err)
   }
 }
 

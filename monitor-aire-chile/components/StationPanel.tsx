@@ -245,8 +245,8 @@ export function StationPanel({ station, activePollutant, onClose }: StationPanel
                         </span>
                         <span className="text-xs font-black text-[#2d2a24] dark:text-slate-200">
                           {mainPollutant === 'pm25'
-                            ? (station.pm25Avg24h !== null && station.pm25Avg24h !== undefined ? `${Math.round(station.pm25Avg24h)} µg/m³` : 'Cargando...')
-                            : (station.pm10Avg24h !== null && station.pm10Avg24h !== undefined ? `${Math.round(station.pm10Avg24h)} µg/m³` : 'Cargando...')}
+                            ? (station.pm25Avg24h !== null && station.pm25Avg24h !== undefined ? `${Math.round(station.pm25Avg24h)} µg/m³` : (station.pm25 !== null && station.pm25 !== undefined ? `${Math.round(station.pm25)} µg/m³ (Estimación)` : 'Sin datos'))
+                            : (station.pm10Avg24h !== null && station.pm10Avg24h !== undefined ? `${Math.round(station.pm10Avg24h)} µg/m³` : (station.pm10 !== null && station.pm10 !== undefined ? `${Math.round(station.pm10)} µg/m³ (Estimación)` : 'Sin datos'))}
                         </span>
                       </div>
                     )}

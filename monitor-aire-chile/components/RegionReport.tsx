@@ -701,18 +701,26 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                                                 <div style={{ width: 7, height: 7, borderRadius: '50%', background: worst?.color ?? COLOR_SINDATOS, flexShrink: 0 }} />
                                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                                     <span style={{ fontSize: 10, fontWeight: 700, color: '#2d2a24' }}>{s.nombre}</span>
-                                                                    {(s.pm25Avg24h !== undefined || s.pm10Avg24h !== undefined) && (
+                                                                    {(s.pm25Avg24h !== undefined || s.pm10Avg24h !== undefined || s.pm25 !== undefined || s.pm10 !== undefined) && (
                                                                         <div style={{ fontSize: 8, color: '#6e685e', marginTop: 2, display: 'flex', gap: 6 }}>
-                                                                            {s.pm25Avg24h !== null && s.pm25Avg24h !== undefined && (
+                                                                            {s.pm25Avg24h !== null && s.pm25Avg24h !== undefined ? (
                                                                                 <span>
                                                                                     MP2.5 24h: <strong>{Math.round(s.pm25Avg24h)} µg/m³</strong>
                                                                                 </span>
-                                                                            )}
-                                                                            {s.pm10Avg24h !== null && s.pm10Avg24h !== undefined && (
+                                                                            ) : (s.pm25 !== null && s.pm25 !== undefined ? (
+                                                                                <span>
+                                                                                    MP2.5: <strong>{Math.round(s.pm25)} µg/m³ (Estimación)</strong>
+                                                                                </span>
+                                                                            ) : null)}
+                                                                            {s.pm10Avg24h !== null && s.pm10Avg24h !== undefined ? (
                                                                                 <span>
                                                                                     MP10 24h: <strong>{Math.round(s.pm10Avg24h)} µg/m³</strong>
                                                                                 </span>
-                                                                            )}
+                                                                            ) : (s.pm10 !== null && s.pm10 !== undefined ? (
+                                                                                <span>
+                                                                                    MP10: <strong>{Math.round(s.pm10)} µg/m³ (Estimación)</strong>
+                                                                                </span>
+                                                                            ) : null)}
                                                                         </div>
                                                                     )}
                                                                 </div>
