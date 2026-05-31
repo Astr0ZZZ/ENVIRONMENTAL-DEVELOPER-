@@ -422,6 +422,80 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                 doc.text('Línea roja punteada = límite normativo 24h (DS vigente). Las barras que la superan indican posible superación de norma.', mL, y)
                 y += 8
             }
+
+            // ── SECCIÓN: Análisis Comparativo y Clúster de Estaciones ──
+            const activeRegionStations = regionStations.filter(hasAnyData)
+            if (activeRegionStations.length > 0) {
+                checkPage(25)
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(8)
+                doc.setTextColor(140, 130, 115)
+                doc.text('DETALLE COMPARATIVO DE ESTACIONES EN LA REGIÓN', mL, y)
+                y += 4
+
+                const severityOrder = ['Bueno', 'Regular', 'Alerta', 'Preemergencia', 'Emergencia']
+                const sortedStationsData = activeRegionStations.map(s => {
+                    const worstCat = getWorstICACategory(s)
+                    const catLabel = worstCat?.categoria ?? 'Sin datos'
+                    
+                    const gases: string[] = []
+                    if (s.so2 !== null && s.so2 >= 0) gases.push(`SO₂: ${Math.round(s.so2)}`)
+                    if (s.no2 !== null && s.no2 >= 0) gases.push(`NO₂: ${Math.round(s.no2)}`)
+                    if (s.o3 !== null && s.o3 >= 0) gases.push(`O₃: ${Math.round(s.o3)}`)
+                    if (s.co !== null && s.co >= 0) gases.push(`CO: ${(s.co / 1000).toFixed(1)}`)
+                    const gasesStr = gases.length > 0 ? gases.join(', ') : '—'
+
+                    return {
+                        station: s.nombre,
+                        locality: s.locality,
+                        catLabel,
+                        pm25: s.pm25 !== null ? `${Math.round(s.pm25)} µg/m³` : '—',
+                        pm10: s.pm10 !== null ? `${Math.round(s.pm10)} µg/m³` : '—',
+                        gasesStr
+                    }
+                }).sort((a, b) => {
+                    return severityOrder.indexOf(b.catLabel) - severityOrder.indexOf(a.catLabel)
+                })
+
+                ;(doc as any).autoTable({
+                    startY: y,
+                    head: [['Estación', 'Comuna', 'Estado ICA', 'MP2.5', 'MP10', 'Gases']],
+                    body: sortedStationsData.map(d => [
+                        d.station,
+                        d.locality,
+                        d.catLabel,
+                        d.pm25,
+                        d.pm10,
+                        d.gasesStr
+                    ]),
+                    styles: { fontSize: 7, cellPadding: 2.5, font: 'helvetica', overflow: 'linebreak' },
+                    headStyles: { fillColor: [0, 229, 163], textColor: 26, fontStyle: 'bold', fontSize: 6.5 },
+                    alternateRowStyles: { fillColor: [248, 247, 242] },
+                    columnStyles: {
+                        0: { cellWidth: 42 },
+                        1: { cellWidth: 26 },
+                        2: { fontStyle: 'bold', cellWidth: 26 },
+                        3: { cellWidth: 20 },
+                        4: { cellWidth: 20 },
+                        5: { cellWidth: 48 },
+                    },
+                    margin: { left: mL, right: mR },
+                    willDrawCell: (data: any) => {
+                        if (data.section === 'body' && data.column.index === 2) {
+                            const val = data.cell.raw
+                            if (val === 'Emergencia') data.cell.styles.textColor = [163, 44, 196]
+                            else if (val === 'Preemergencia') data.cell.styles.textColor = [255, 46, 84]
+                            else if (val === 'Alerta') data.cell.styles.textColor = [255, 122, 0]
+                            else if (val === 'Regular') data.cell.styles.textColor = [180, 140, 0]
+                            else if (val === 'Bueno') data.cell.styles.textColor = [0, 160, 100]
+                        }
+                    },
+                    didDrawPage: () => { y = (doc as any).lastAutoTable?.finalY ?? y },
+                })
+                const finalY: number = (doc as any).lastAutoTable?.finalY ?? y
+                y = finalY + 6
+            }
+
             setProgress(68)
 
             // â”€â”€ SECCIÃ“N: Tabla de superaciones normativas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
