@@ -118,3 +118,36 @@
 .custom-station-marker:hover > div > div:nth-child(2) {
   transform: scale(1.25);
 }
+
+/* Custom Leaflet Attribution to prevent overlap with map legend on mobile */
+.leaflet-control-attribution {
+  font-size: 8px !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+  color: #8c8273 !important;
+  border-radius: 6px;
+  margin: 0 4px 4px 0 !important;
+  padding: 2px 6px !important;
+  border: 1px solid rgba(212, 206, 190, 0.5) !important;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: max-width 0.3s ease, white-space 0.3s ease, background-color 0.2s ease;
+  pointer-events: auto;
+}
+
+.leaflet-control-attribution:hover {
+  max-width: 600px;
+  white-space: normal;
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+
+.dark .leaflet-control-attribution {
+  background: rgba(15, 23, 42, 0.8) !important;
+  color: #64748b !important;
+  border-color: rgba(51, 65, 85, 0.5) !important;
+}
+
+.dark .leaflet-control-attribution:hover {
+  background: rgba(15, 23, 42, 0.95) !important;
+}

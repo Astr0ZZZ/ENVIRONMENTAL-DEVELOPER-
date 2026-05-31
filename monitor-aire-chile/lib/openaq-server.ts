@@ -226,20 +226,54 @@ export async function fetchLocationsServer(): Promise<Station[]> {
   const now = Date.now()
   const freshCache = readCache()
 
-  // Ordenar para priorizar las que NO tienen datos o tienen datos más antiguos
+  // Ordenar para priorizar las que NO tienen datos o tienen datos más antiguos,
+  // y especialmente aquellas que necesitan inicializar su historial de 24h.
   const sortedStations = [...baseStations].sort((a, b) => {
     const aCache = freshCache.stations[a.id]
     const bCache = freshCache.stations[b.id]
+
+    // Verificar si a la estación A le falta inicializar el historial de 24h para sus sensores activos.
+    const hasA25 = Object.values(a.sensorMap).includes('pm25')
+    const hasA10 = Object.values(a.sensorMap).includes('pm10')
+    const lacksA = a.active && aCache && (
+      (hasA25 && aCache.pm25History === undefined) ||
+      (hasA10 && aCache.pm10History === undefined)
+    )
+
+    // Verificar si a la estación B le falta inicializar el historial de 24h para sus sensores activos.
+    const hasB25 = Object.values(b.sensorMap).includes('pm25')
+    const hasB10 = Object.values(b.sensorMap).includes('pm10')
+    const lacksB = b.active && bCache && (
+      (hasB25 && bCache.pm25History === undefined) ||
+      (hasB10 && bCache.pm10History === undefined)
+    )
+
+    if (lacksA && !lacksB) return -1
+    if (!lacksA && lacksB) return 1
+
     const aTime = aCache ? aCache.cachedAt : 0
     const bTime = bCache ? bCache.cachedAt : 0
     return aTime - bTime
   })
 
-  // Filtrar estaciones expiradas (solo activas)
+  // Filtrar estaciones expiradas (solo activas) o que les falta inicializar su historial 24h
   const expiredStations = sortedStations.filter((station) => {
     if (!station.active) return false
     const stationCache = freshCache.stations[station.id]
-    return !stationCache || now - stationCache.cachedAt >= CACHE_TTL_MS
+    if (!stationCache) return true
+
+    // Si tiene sensores PM2.5 o PM10 pero sus campos de historial en caché son undefined,
+    // forzamos la actualización para precargar los datos de 24 horas.
+    const hasPm25Sensor = Object.values(station.sensorMap).includes('pm25')
+    const hasPm10Sensor = Object.values(station.sensorMap).includes('pm10')
+    const lacksPm25History = hasPm25Sensor && stationCache.pm25History === undefined
+    const lacksPm10History = hasPm10Sensor && stationCache.pm10History === undefined
+
+    if (lacksPm25History || lacksPm10History) {
+      return true
+    }
+
+    return now - stationCache.cachedAt >= CACHE_TTL_MS
   })
 
   // Limitamos las consultas a un máximo de 20 estaciones por request de página

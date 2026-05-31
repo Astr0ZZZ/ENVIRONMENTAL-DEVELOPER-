@@ -28,13 +28,13 @@ interface RegionReportProps {
     onClose: () => void
 }
 
-// â”€â”€â”€ Normativa legal chilena â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Normativa legal chilena ────────────────────────────────────────────────
 const LEGAL_LIMITS: Record<string, { value: number; decreto: string; label: string; unit: string }> = {
     pm25: { value: 50, decreto: 'DS N°12/2011 MMA', label: 'MP2,5 límite 24h', unit: 'µg/m³' },
     pm10: { value: 130, decreto: 'DS N°12/2021 MMA', label: 'MP10 límite 24h', unit: 'µg/m³' },
-    so2: { value: 250, decreto: 'OMS / NCh', label: 'SOâ‚‚ referencia', unit: 'µg/m³' },
-    no2: { value: 200, decreto: 'OMS / NCh', label: 'NOâ‚‚ referencia', unit: 'µg/m³' },
-    o3: { value: 160, decreto: 'OMS / NCh', label: 'Oâ‚ƒ referencia', unit: 'µg/m³' },
+    so2: { value: 250, decreto: 'OMS / NCh', label: 'SO₂ referencia', unit: 'µg/m³' },
+    no2: { value: 200, decreto: 'OMS / NCh', label: 'NO₂ referencia', unit: 'µg/m³' },
+    o3: { value: 160, decreto: 'OMS / NCh', label: 'O₃ referencia', unit: 'µg/m³' },
     co: { value: 10, decreto: 'OMS / NCh', label: 'CO referencia', unit: 'mg/m³' },
 }
 
@@ -59,13 +59,13 @@ const ICA_COLORS: Record<string, string> = {
 const POLLUTANTS = [
     { key: 'pm25', label: 'PM2.5', unit: 'µg/m³', isCO: false },
     { key: 'pm10', label: 'PM10', unit: 'µg/m³', isCO: false },
-    { key: 'so2', label: 'SOâ‚‚', unit: 'µg/m³', isCO: false },
-    { key: 'no2', label: 'NOâ‚‚', unit: 'µg/m³', isCO: false },
-    { key: 'o3', label: 'Oâ‚ƒ', unit: 'µg/m³', isCO: false },
+    { key: 'so2', label: 'SO₂', unit: 'µg/m³', isCO: false },
+    { key: 'no2', label: 'NO₂', unit: 'µg/m³', isCO: false },
+    { key: 'o3', label: 'O₃', unit: 'µg/m³', isCO: false },
     { key: 'co', label: 'CO', unit: 'mg/m³', isCO: true },
 ] as const
 
-// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helpers ───────────────────────────────────────────────────────────────
 function hasAnyData(s: Station): boolean {
     return POLLUTANTS.some(p => {
         const v = s[p.key as keyof Station]
@@ -232,7 +232,7 @@ function computeRegionStats(stns: Station[]) {
     return { categoryCounts, pollutantStats, communes, violations, withData: withData.length, total: stns.length }
 }
 
-// â”€â”€â”€ SVG Components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── SVG Components ────────────────────────────────────────────────────────
 
 function DonutChart({ data, size = 96 }: { data: { label: string; count: number; color: string }[]; size?: number }) {
     const total = data.reduce((a, b) => a + b.count, 0)
@@ -824,12 +824,12 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                     </div>
                                 )}
 
-                                {/* â”€â”€ 6. Footer â”€â”€ */}
+                                {/* ── 6. Footer ── */}
                                 <div style={{ borderTop: '1px solid #d4cebe', paddingTop: 12, marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                                     <div>
                                         <p style={{ fontSize: 8, color: '#8c8273', margin: 0, lineHeight: 1.7 }}>
                                              <strong>Fuente:</strong> SINCA / Ministerio del Medio Ambiente de Chile, vía OpenAQ v3.<br />
-                                             <strong>Normativa:</strong> DS N°12/2021 MMA (MP10) · DS N°12/2011 MMA (MP2.5) · Plan GEC segÃºn PPDA vigente.<br />
+                                             <strong>Normativa:</strong> DS N°12/2021 MMA (MP10) · DS N°12/2011 MMA (MP2.5) · Plan GEC según PPDA vigente.<br />
                                              <strong>Limitación:</strong> Datos de sensores para estimaciones técnicas. No reemplaza informes de la SMA (Superintendencia del Medio Ambiente).<br />
                                              <strong>GEC:</strong> La categoría «Estimación ICA» NO equivale a una declaración oficial de GEC emitida por resolución administrativa.<br />
                                              <strong>Quemas:</strong> Prohibición permanente 365 días en la RM desde el 26/11/2026 (incluye quema de hojas y escombros).
@@ -842,7 +842,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                 </div>
 
                             </div>
-                            {/* â•â• END PRINTABLE â•â• */}
+                            {/* ══ END PRINTABLE ══ */}
 
                             {/* Action bar */}
                             <div className="bg-[#faf8f2] dark:bg-slate-900 px-6 py-4 border-t border-[#d4cebe] dark:border-slate-800 flex items-center justify-between">
@@ -858,7 +858,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                     {!isGenerating && (
                                         <p className="text-xs text-[#8c8273] dark:text-slate-500">
                                             {stats.violations.length > 0
-                                                ? `âš  ${stats.violations.length} superación${stats.violations.length > 1 ? 'es' : ''} normativa detectada${stats.violations.length > 1 ? 's' : ''}`
+                                                ? `⚠️ ${stats.violations.length} superación${stats.violations.length > 1 ? 'es' : ''} normativa detectada${stats.violations.length > 1 ? 's' : ''}`
                                                 : 'Sin superaciones normativas detectadas'}
                                         </p>
                                     )}
@@ -866,7 +866,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                 <button onClick={handleGeneratePDF} disabled={isGenerating}
                                     className="flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-wait px-5 py-2.5 text-sm font-bold text-white transition-all shadow-lg shadow-emerald-600/20">
                                     {isGenerating ? (
-                                        <><svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Generandoâ€¦</>
+                                        <><svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Generando...</>
                                     ) : (
                                         <><svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>Descargar PDF</>
                                     )}
