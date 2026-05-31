@@ -97,7 +97,7 @@ export function Dashboard({ stations }: DashboardProps) {
     {
       targetId: 'tour-stats',
       title: '🚨 Estados de Emergencia',
-      content: 'Haz clic en estas tarjetas para filtrar rápidamente las estaciones según su estado actual (Bueno, Alerta, Emergencia, etc.).',
+      content: 'Haz clic en estas tarjetas para filtrar rápidamente las estaciones según su estado actual (Bueno, Alerta, Emergencia, etc.). Puedes minimizar este panel para ver mejor el mapa.',
     },
     {
       targetId: 'tour-pollutant',
@@ -134,10 +134,10 @@ export function Dashboard({ stations }: DashboardProps) {
     const step = tourSteps[tourStep]
     if (!step) return
 
-    // Un-minimize panels automatically when the tour highlights them
-    if (step.targetId === 'tour-pollutant') setIsMinimizedPollutant(false)
-    if (step.targetId === 'tour-search') setIsMinimizedSearchPanel(false)
-    if (step.targetId === 'tour-stats') setIsMinimizedStats(false)
+    // Un-minimize ONLY the current panel, and minimize the rest to focus attention
+    setIsMinimizedStats(step.targetId !== 'tour-stats')
+    setIsMinimizedPollutant(step.targetId !== 'tour-pollutant')
+    setIsMinimizedSearchPanel(step.targetId !== 'tour-search')
 
     const updatePosition = (shouldScroll = false) => {
       const el = document.getElementById(step.targetId)
