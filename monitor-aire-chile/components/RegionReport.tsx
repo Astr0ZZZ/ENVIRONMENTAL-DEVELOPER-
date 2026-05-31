@@ -197,16 +197,13 @@ function HorizontalBar({
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#4a453c' }}>{label}</span>
                 <span style={{ fontSize: 10, fontWeight: 800, color: color, fontVariantNumeric: 'tabular-nums' }}>
-                    {value !== null ? `${value < 10 ? value.toFixed(2) : Math.round(value)} ${unit}` : 'â€”'}
-                    {exceeds && <span style={{ marginLeft: 4, fontSize: 8, background: COLOR_EMERGENCIA, color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 900 }}>â†‘ {decreto}</span>}
+                    {value !== null ? `${value < 10 ? value.toFixed(2) : Math.round(value)} ${unit}` : '—'}
+                    {exceeds && <span style={{ marginLeft: 4, fontSize: 8, background: COLOR_EMERGENCIA, color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 900 }}>↑ {decreto}</span>}
                 </span>
             </div>
             <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H }}>
-                {/* Track */}
                 <rect x={0} y={8} width={W} height={12} rx={6} fill="#e4dec9" opacity={0.6} />
-                {/* Bar */}
                 {value !== null && <rect x={0} y={8} width={barW} height={12} rx={6} fill={color} opacity={0.85} />}
-                {/* Legal limit line */}
                 {limitX !== null && (
                     <>
                         <line x1={limitX} y1={4} x2={limitX} y2={24} stroke="#FF2E54" strokeWidth={1.5} strokeDasharray="3,2" />
@@ -218,7 +215,7 @@ function HorizontalBar({
     )
 }
 
-// â”€â”€â”€ Helper PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Helper PDF ─────────────────────────────────────────────────────────────
 function hexToRgb(hex: string): [number, number, number] {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
     return result
@@ -226,7 +223,27 @@ function hexToRgb(hex: string): [number, number, number] {
         : [100, 116, 139]
 }
 
-// â”€â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function drawSector(doc: any, cx: number, cy: number, r: number, startAngleDeg: number, endAngleDeg: number, color: [number, number, number]) {
+    doc.setFillColor(color[0], color[1], color[2])
+    doc.moveTo(cx, cy)
+    const startRad = startAngleDeg * Math.PI / 180
+    const endRad = endAngleDeg * Math.PI / 180
+    
+    const step = 2
+    for (let a = startAngleDeg; a <= endAngleDeg; a += step) {
+        const rad = a * Math.PI / 180
+        const x = cx + r * Math.cos(rad)
+        const y = cy + r * Math.sin(rad)
+        doc.lineTo(x, y)
+    }
+    const lastX = cx + r * Math.cos(endRad)
+    const lastY = cy + r * Math.sin(endRad)
+    doc.lineTo(lastX, lastY)
+    doc.lineTo(cx, cy)
+    doc.fill()
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export function RegionReport({ stations, onClose }: RegionReportProps) {
     const [selectedRegion, setSelectedRegion] = useState('')
     const [isGenerating, setIsGenerating] = useState(false)
@@ -258,7 +275,9 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                 catLabel,
                 pm25: typeof s.pm25 === 'number' ? `${Math.round(s.pm25)} µg/m³` : '—',
                 pm10: typeof s.pm10 === 'number' ? `${Math.round(s.pm10)} µg/m³` : '—',
-                gasesStr
+                gasesStr,
+                pm25Val: s.pm25,
+                pm10Val: s.pm10,
             }
         }).sort((a, b) => {
             return severityOrder.indexOf(b.catLabel) - severityOrder.indexOf(a.catLabel)
@@ -280,14 +299,26 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
             setProgress(25)
 
             const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-            const pageW = doc.internal.pageSize.getWidth()   // 210mm
-            const pageH = doc.internal.pageSize.getHeight()  // 297mm
+            const pageW = (doc.internal.pageSize as any).getWidth()
+            const pageH = (doc.internal.pageSize as any).getHeight()
             const mL = 14, mR = 14
-            const cW = pageW - mL - mR   // 182mm
-            const FOOTER_H = 30          // reservar espacio footer
-            let y = 14
+            const cW = pageW - mL - mR
+            const FOOTER_H = 30
+            let y = 14;
 
-            // Paginación automática
+            // Monkey-patch doc.addPage to automatically paint the beige background
+            const originalAddPage = doc.addPage
+            doc.addPage = function(...args) {
+                const res = originalAddPage.apply(this, args)
+                doc.setFillColor(250, 248, 242)
+                doc.rect(0, 0, pageW, pageH, 'F')
+                return res
+            }
+
+            // Paint background of the first page
+            doc.setFillColor(250, 248, 242)
+            doc.rect(0, 0, pageW, pageH, 'F')
+
             const checkPage = (needed: number) => {
                 if (y + needed > pageH - FOOTER_H) {
                     doc.addPage()
@@ -295,7 +326,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                 }
             }
 
-            // â”€â”€ HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── HEADER ────────────────────────────────────────────────────────────
             doc.setFillColor(0, 229, 163)
             doc.rect(mL, y, cW, 0.8, 'F')
             y += 4
@@ -320,15 +351,15 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
             doc.setTextColor(140, 130, 115)
             doc.text(dateOnly, mL, y)
 
-            // Badge Estimación ICA (esquina superior derecha)
+            // Badge Estimación ICA (esquina superior derecha en tarjeta redondeada)
             if (gecLevel) {
                 const [br, bg, bb] = hexToRgb(ICA_COLORS[gecLevel] ?? '#64748b')
                 doc.setFillColor(br, bg, bb)
-                doc.rect(pageW - mR - 36, 14, 36, 15, 'F')
+                doc.roundedRect(pageW - mR - 36, 14, 36, 15, 2, 2, 'F')
                 doc.setFont('helvetica', 'bold')
                 doc.setFontSize(6)
                 doc.setTextColor(255, 255, 255)
-                doc.text('ESTIMACIÃ“N ICA', pageW - mR - 18, 21, { align: 'center' })
+                doc.text('ESTIMACION ICA', pageW - mR - 18, 21, { align: 'center' })
                 doc.setFontSize(10)
                 doc.text(gecLevel.toUpperCase(), pageW - mR - 18, 27, { align: 'center' })
             }
@@ -344,14 +375,64 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
             doc.setLineWidth(0.3)
             doc.line(mL, y, pageW - mR, y)
             y += 8
+
+            // ── ALERTA TÉCNICA ICA BANNER ──────────────────────────────────────────
+            if (gecLevel && ['Alerta', 'Preemergencia', 'Emergencia'].includes(gecLevel)) {
+                const bannerH = 15
+                checkPage(bannerH + 4)
+                
+                const bannerBgRGB: Record<string, [number, number, number]> = {
+                    Alerta: [255, 242, 230],
+                    Preemergencia: [255, 235, 238],
+                    Emergencia: [246, 235, 249],
+                }
+                const bannerBorderRGB: Record<string, [number, number, number]> = {
+                    Alerta: [255, 180, 120],
+                    Preemergencia: [255, 150, 170],
+                    Emergencia: [210, 150, 225],
+                }
+                
+                const [bgR, bgG, bgB] = bannerBgRGB[gecLevel] ?? [240, 240, 240]
+                const [bdR, bdG, bdB] = bannerBorderRGB[gecLevel] ?? [200, 200, 200]
+                
+                doc.setFillColor(bgR, bgG, bgB)
+                doc.setDrawColor(bdR, bdG, bdB)
+                doc.setLineWidth(0.3)
+                doc.roundedRect(mL, y, cW, bannerH, 2, 2, 'FD')
+                
+                const txtColor = ICA_COLORS[gecLevel]
+                const [tr, tg, tb] = hexToRgb(txtColor)
+                
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(7)
+                doc.setTextColor(tr, tg, tb)
+                doc.text(`ALERTA TECNICA ICA - ${gecLevel} (estimacion sensor):`, mL + 4, y + 4.5)
+                
+                doc.setFont('helvetica', 'normal')
+                doc.setFontSize(6)
+                doc.setTextColor(74, 69, 60)
+                
+                let text = ''
+                if (gecLevel === 'Emergencia') {
+                    text = 'Situacion de extremo riesgo para la salud publica. (Umbral sensor ICA: PM2.5 > 45 ug/m3 o PM10 > 200 ug/m3; umbral GEC oficial: PM2.5 >= 170 ug/m3 o PM10 >= 330 ug/m3). Estimacion tecnica - no equivale a declaracion oficial de GEC.'
+                } else if (gecLevel === 'Preemergencia') {
+                    text = 'Nivel de contaminacion severa. (Umbral sensor ICA: PM2.5 36-45 ug/m3 o PM10 151-200 ug/m3; umbral GEC oficial: PM2.5 110-169 ug/m3 o PM10 240-329 ug/m3). Estimacion tecnica - no equivale a declaracion oficial de GEC.'
+                } else if (gecLevel === 'Alerta') {
+                    text = 'Nivel inicial de resguardo preventivo. (Umbral sensor ICA: PM2.5 26-35 ug/m3 o PM10 101-150 ug/m3; umbral GEC oficial: PM2.5 80-109 ug/m3 o PM10 195-239 ug/m3). Estimacion tecnica - no equivale a declaracion oficial de GEC.'
+                }
+                
+                const splitText = doc.splitTextToSize(text, cW - 8)
+                doc.text(splitText, mL + 4, y + 8)
+                y += bannerH + 6
+            }
             setProgress(35)
 
-            // â”€â”€ SECCIÃ“N: Distribución por Categoría ICA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-            checkPage(35)
+            // ── SECCIÓN: Distribución por Categoría ICA ──
+            checkPage(42)
             doc.setFont('helvetica', 'bold')
             doc.setFontSize(8)
             doc.setTextColor(140, 130, 115)
-            doc.text('DISTRIBUCIÃ“N POR CATEGORÃA ICA', mL, y)
+            doc.text('DISTRIBUCIÓN POR CATEGORÍA ICA', mL, y)
             y += 5
 
             const catOrder = ['Bueno', 'Regular', 'Alerta', 'Preemergencia', 'Emergencia']
@@ -359,94 +440,133 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                 Bueno: [0, 229, 163], Regular: [255, 211, 0], Alerta: [255, 122, 0],
                 Preemergencia: [255, 46, 84], Emergencia: [163, 44, 196],
             }
-            const catEntries = catOrder.filter(c => (stats.categoryCounts[c] ?? 0) > 0)
-            if (catEntries.length > 0) {
-                const cellW = cW / catEntries.length
-                catEntries.forEach((cat, i) => {
-                    const x = mL + i * cellW
-                    const [cr, cg, cb] = catRGB[cat] ?? [100, 116, 139]
-                    doc.setFillColor(cr, cg, cb)
-                    doc.rect(x, y, cellW - 2, 16, 'F')
-                    const isDark = cat !== 'Bueno' && cat !== 'Regular'
-                    doc.setFont('helvetica', 'bold')
-                    doc.setFontSize(14)
-                    doc.setTextColor(isDark ? 255 : 26, isDark ? 255 : 23, isDark ? 255 : 20)
-                    doc.text(String(stats.categoryCounts[cat] ?? 0), x + (cellW - 2) / 2, y + 9, { align: 'center' })
-                    doc.setFontSize(5.5)
-                    doc.text(cat.toUpperCase(), x + (cellW - 2) / 2, y + 13.5, { align: 'center' })
+            const totalEstaciones = stats.withData
+            if (totalEstaciones > 0) {
+                const cardH = 34
+                doc.setFillColor(255, 255, 255)
+                doc.setDrawColor(212, 206, 190)
+                doc.setLineWidth(0.3)
+                doc.roundedRect(mL, y, cW, cardH, 3, 3, 'FD')
+
+                const dcx = mL + 24
+                const dcy = y + 17
+                const dR = 12
+                const drInner = 7.5
+                let currentAngle = -90
+
+                catOrder.forEach(cat => {
+                    const count = stats.categoryCounts[cat] ?? 0
+                    if (count === 0) return
+                    const sweep = (count / totalEstaciones) * 360
+                    const rgb = catRGB[cat]
+                    drawSector(doc, dcx, dcy, dR, currentAngle, currentAngle + sweep, rgb)
+                    currentAngle += sweep
                 })
-                y += 20
+
+                doc.setFillColor(255, 255, 255)
+                doc.circle(dcx, dcy, drInner, 'F')
+
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(10)
+                doc.setTextColor(26, 23, 20)
+                doc.text(String(totalEstaciones), dcx, dcy - 0.5, { align: 'center' })
+                doc.setFontSize(5)
+                doc.setTextColor(140, 130, 115)
+                doc.text('estaciones', dcx, dcy + 3.5, { align: 'center' })
+
+                const legX = dcx + 20
+                let legY = y + 6
+                catOrder.forEach(cat => {
+                    const count = stats.categoryCounts[cat] ?? 0
+                    if (count === 0) return
+                    const [cr, cg, cb] = catRGB[cat]
+                    
+                    doc.setFillColor(cr, cg, cb)
+                    doc.circle(legX, legY - 1, 1.3, 'F')
+
+                    doc.setFont('helvetica', 'bold')
+                    doc.setFontSize(7)
+                    doc.setTextColor(26, 23, 20)
+                    doc.text(`${cat}:`, legX + 4, legY)
+
+                    doc.setFont('helvetica', 'normal')
+                    doc.setFontSize(7)
+                    doc.setTextColor(74, 69, 60)
+                    doc.text(`${count} ${count === 1 ? 'estacion' : 'estaciones'} (${Math.round((count / totalEstaciones) * 100)}%)`, legX + 22, legY)
+                    legY += 5.5
+                })
+
+                y += cardH + 6
             }
             setProgress(50)
 
-            // â”€â”€ SECCIÃ“N: Gráfico comparativo vectorial â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── SECCIÓN: Gráfico comparativo vectorial ──
             const pollData = stats.pollutantStats.filter(p => p.avg !== null)
             if (pollData.length > 0) {
-                checkPage(20 + pollData.length * 11)
+                checkPage(24 + pollData.length * 12)
                 doc.setFont('helvetica', 'bold')
                 doc.setFontSize(8)
                 doc.setTextColor(140, 130, 115)
-                doc.text('CONCENTRACIÃ“N PROMEDIO POR CONTAMINANTE vs. LÃMITE NORMATIVO', mL, y)
-                y += 6
+                doc.text('CONCENTRACIÓN PROMEDIO POR CONTAMINANTE vs. LÍMITE NORMATIVO', mL, y)
+                y += 5
 
+                const cardH = pollData.length * 12 + 8
+                doc.setFillColor(255, 255, 255)
+                doc.setDrawColor(212, 206, 190)
+                doc.setLineWidth(0.3)
+                doc.roundedRect(mL, y, cW, cardH, 3, 3, 'FD')
+
+                let cardY = y + 4
                 const CEILING: Record<string, number> = {
                     pm25: 150, pm10: 300, so2: 750, no2: 1200, o3: 600, co: 60,
                 }
-                const BAR_H = 7, GAP = 5, LBL = 16
-                const bMaxW = cW - LBL - 24
+                const BAR_H = 5, GAP = 7, LBL = 16
+                const bMaxW = cW - LBL - 28
 
                 pollData.forEach(p => {
                     if (p.avg === null) return
-                    checkPage(BAR_H + GAP + 2)
-
                     const isC = p.key === 'co'
                     const dAvg = isC ? p.avg / 1000 : p.avg
                     const dCeil = CEILING[p.key] ?? Math.max(dAvg * 2, 1)
-                    // LEGAL_LIMITS usa unidades de display: mg/m³ para CO, µg/m³ para resto
                     const dLimit = LEGAL_LIMITS[p.key]?.value ?? dCeil
                     const unit = isC ? 'mg/m³' : 'µg/m³'
 
                     const bW = Math.max(1, Math.min((dAvg / dCeil) * bMaxW, bMaxW))
                     const limX = Math.min((dLimit / dCeil) * bMaxW, bMaxW)
 
-                    // Label
+                    const cleanLabel = p.label.replace('₂', '2').replace('₃', '3')
                     doc.setFont('helvetica', 'bold')
                     doc.setFontSize(6.5)
                     doc.setTextColor(74, 69, 60)
-                    doc.text(p.label, mL, y + BAR_H - 1.5)
+                    doc.text(cleanLabel, mL + 4, cardY + BAR_H - 1)
 
-                    // Track
                     doc.setFillColor(228, 222, 201)
-                    doc.rect(mL + LBL, y, bMaxW, BAR_H, 'F')
+                    doc.roundedRect(mL + LBL + 4, cardY, bMaxW, BAR_H, 1.5, 1.5, 'F')
 
-                    // Barra ICA
-                    const ica = getICACategory(p.avg ?? 0, p.key as 'pm10' | 'pm25' | 'so2' | 'no2' | 'o3' | 'co')
+                    const ica = getICACategory(p.avg ?? 0, p.key as any)
                     const [ir, ig, ib] = hexToRgb(ica.color)
                     doc.setFillColor(ir, ig, ib)
-                    doc.rect(mL + LBL, y, bW, BAR_H, 'F')
+                    doc.roundedRect(mL + LBL + 4, cardY, bW, BAR_H, 1.5, 1.5, 'F')
 
-                    // Línea roja discontinua límite normativo (Manual §3.2)
                     doc.setDrawColor(255, 46, 84)
                     doc.setLineWidth(0.5)
-                    ;(doc as any).setLineDash([1.5, 1], 0)
-                    doc.line(mL + LBL + limX, y - 1, mL + LBL + limX, y + BAR_H + 1)
-                    ;(doc as any).setLineDash([], 0)
+                    if (typeof (doc as any).setLineDash === 'function') (doc as any).setLineDash([1.5, 1], 0)
+                    doc.line(mL + LBL + 4 + limX, cardY - 1, mL + LBL + 4 + limX, cardY + BAR_H + 1)
+                    if (typeof (doc as any).setLineDash === 'function') (doc as any).setLineDash([], 0)
 
-                    // Valor
                     doc.setFont('helvetica', 'bold')
                     doc.setFontSize(6)
                     doc.setTextColor(ir, ig, ib)
-                    doc.text(
-                        `${dAvg < 10 ? dAvg.toFixed(2) : Math.round(dAvg)} ${unit}`,
-                        mL + LBL + bMaxW + 2, y + BAR_H - 1.5
-                    )
-                    y += BAR_H + GAP
+                    doc.text(`${dAvg < 10 ? dAvg.toFixed(2) : Math.round(dAvg)} ${unit}`, mL + LBL + 4 + bMaxW + 2, cardY + BAR_H - 1)
+                    
+                    cardY += BAR_H + GAP
                 })
 
+                y += cardH + 4
                 doc.setFont('helvetica', 'italic')
                 doc.setFontSize(5.5)
                 doc.setTextColor(140, 130, 115)
-                doc.text('Línea roja punteada = límite normativo 24h (DS vigente). Las barras que la superan indican posible superación de norma.', mL, y)
+                doc.text('Linea roja punteada = limite normativo 24h (DS vigente). Las barras que la superan indican posible superacion de norma.', mL, y)
                 y += 8
             }
 
@@ -468,39 +588,56 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                         d.catLabel,
                         d.pm25,
                         d.pm10,
-                        d.gasesStr
+                        d.gasesStr.replace('₂', '2').replace('₃', '3')
                     ]),
-                    styles: { fontSize: 7, cellPadding: 2.5, font: 'helvetica', overflow: 'linebreak' },
-                    headStyles: { fillColor: [0, 229, 163], textColor: 26, fontStyle: 'bold', fontSize: 6.5 },
+                    theme: 'plain',
+                    styles: { fontSize: 7, cellPadding: 2.5, font: 'helvetica', overflow: 'linebreak', lineColor: [212, 206, 190], lineWidth: 0.15 },
+                    headStyles: { fillColor: [0, 229, 163], textColor: [26, 23, 20], fontStyle: 'bold', fontSize: 6.5 },
                     alternateRowStyles: { fillColor: [248, 247, 242] },
-                    columnStyles: {
-                        0: { cellWidth: 42 },
-                        1: { cellWidth: 26 },
-                        2: { fontStyle: 'bold', cellWidth: 26 },
-                        3: { cellWidth: 20 },
-                        4: { cellWidth: 20 },
-                        5: { cellWidth: 48 },
-                    },
+                    columnStyles: { 0: { cellWidth: 42 }, 1: { cellWidth: 26 }, 2: { fontStyle: 'bold', cellWidth: 26 }, 3: { cellWidth: 20 }, 4: { cellWidth: 20 }, 5: { cellWidth: 48 } },
                     margin: { left: mL, right: mR },
                     willDrawCell: (data: any) => {
-                        if (data.section === 'body' && data.column.index === 2) {
-                            const val = data.cell.raw
-                            if (val === 'Emergencia') data.cell.styles.textColor = [163, 44, 196]
-                            else if (val === 'Preemergencia') data.cell.styles.textColor = [255, 46, 84]
-                            else if (val === 'Alerta') data.cell.styles.textColor = [255, 122, 0]
-                            else if (val === 'Regular') data.cell.styles.textColor = [180, 140, 0]
-                            else if (val === 'Bueno') data.cell.styles.textColor = [0, 160, 100]
+                        if (data.section === 'body') {
+                            if (data.column.index === 2) {
+                                const val = data.cell.raw
+                                const colorHex = ICA_COLORS[val] ?? COLOR_SINDATOS
+                                const [r, g, b] = hexToRgb(colorHex)
+                                data.cell.styles.textColor = [r, g, b]
+                                data.cell.styles.fontStyle = 'bold'
+                            }
+                            if (data.column.index === 3) {
+                                const valStr = data.cell.raw
+                                if (valStr && valStr !== '—') {
+                                    const num = parseFloat(valStr)
+                                    if (!isNaN(num)) {
+                                        const cat = getICACategory(num, 'pm25')
+                                        const [r, g, b] = hexToRgb(cat.color)
+                                        data.cell.styles.textColor = [r, g, b]
+                                        data.cell.styles.fontStyle = 'bold'
+                                    }
+                                }
+                            }
+                            if (data.column.index === 4) {
+                                const valStr = data.cell.raw
+                                if (valStr && valStr !== '—') {
+                                    const num = parseFloat(valStr)
+                                    if (!isNaN(num)) {
+                                        const cat = getICACategory(num, 'pm10')
+                                        const [r, g, b] = hexToRgb(cat.color)
+                                        data.cell.styles.textColor = [r, g, b]
+                                        data.cell.styles.fontStyle = 'bold'
+                                    }
+                                }
+                            }
                         }
                     },
                     didDrawPage: () => { y = (doc as any).lastAutoTable?.finalY ?? y },
                 })
-                const finalY: number = (doc as any).lastAutoTable?.finalY ?? y
-                y = finalY + 6
+                y = (doc as any).lastAutoTable?.finalY + 6
             }
-
             setProgress(68)
 
-            // â”€â”€ SECCIÃ“N: Tabla de superaciones normativas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── SECCIÓN: Tabla de superaciones normativas ──
             if (stats.violations.length > 0) {
                 checkPage(20)
                 doc.setFont('helvetica', 'bold')
@@ -516,10 +653,11 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                         const dv = v.pollutant === 'CO'
                             ? (v.value / 1000).toFixed(2) + ' mg/m³'
                             : Math.round(v.value) + ' µg/m³'
-                        return [v.station, v.locality, v.pollutant, dv, v.decreto]
+                        return [v.station, v.locality, v.pollutant.replace('₂', '2').replace('₃', '3'), dv, v.decreto]
                     }),
-                    styles: { fontSize: 7, cellPadding: 2.5, font: 'helvetica', overflow: 'linebreak' },
-                    headStyles: { fillColor: [255, 46, 84], textColor: 255, fontStyle: 'bold', fontSize: 6.5 },
+                    theme: 'plain',
+                    styles: { fontSize: 7, cellPadding: 2.5, font: 'helvetica', overflow: 'linebreak', lineColor: [212, 206, 190], lineWidth: 0.15 },
+                    headStyles: { fillColor: [255, 46, 84], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 6.5 },
                     alternateRowStyles: { fillColor: [255, 249, 249] },
                     columnStyles: {
                         0: { cellWidth: 44 },
@@ -536,7 +674,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
             }
             setProgress(85)
 
-            // â”€â”€ FOOTER (en cada página) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            // ── FOOTER (en cada página) ───────────────────────────────────────────
             const totalPages = (doc as any).getNumberOfPages()
             for (let pg = 1; pg <= totalPages; pg++) {
                 doc.setPage(pg)
@@ -548,16 +686,16 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                 doc.setFontSize(5.5)
                 doc.setTextColor(140, 130, 115)
                 doc.text([
-                    'Fuente: SINCA / Ministerio del Medio Ambiente de Chile, vía OpenAQ v3.',
-                    'Normativa: DS N°12/2021 MMA (MP10) · DS N°12/2011 MMA (MP2.5) · Plan GEC segÃºn PPDA vigente.',
-                    'Limitación: Datos de sensores â€” estimación técnica. No reemplaza informes de la SMA.',
-                    'La categoría "Estimación ICA" NO equivale a una declaración oficial de GEC (resolución administrativa).',
-                    'Quemas RM: Prohibición 365 días desde 26/11/2026 (incluye hojas y escombros).',
+                    'Fuente: SINCA / Ministerio del Medio Ambiente de Chile, via OpenAQ v3.',
+                    'Normativa: DS N.12/2021 MMA (MP10) · DS N.12/2011 MMA (MP2.5) · Plan GEC segun PPDA vigente.',
+                    'Limitacion: Datos de sensores - estimacion tecnica. No reemplaza informes de la SMA.',
+                    'La categoria "Estimacion ICA" NO equivale a una declaracion oficial de GEC (resolucion administrativa).',
+                    'Quemas RM: Prohibicion 365 dias desde 26/11/2026 (incluye hojas y escombros).',
                 ], mL, fY + 4, { lineHeightFactor: 1.6 })
                 doc.setFont('helvetica', 'bold')
                 doc.setFontSize(5.5)
                 doc.setTextColor(100, 116, 139)
-                doc.text(`Pág. ${pg}/${totalPages} · Generado: ${now}`, pageW - mR, fY + 4, { align: 'right' })
+                doc.text(`Pag. ${pg}/${totalPages} · Generado: ${now}`, pageW - mR, fY + 4, { align: 'right' })
             }
 
             setProgress(95)
