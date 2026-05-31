@@ -179,6 +179,20 @@ export function Dashboard({ stations }: DashboardProps) {
     return ['Todas', ...unique.sort()]
   }, [stations, selectedRegion])
 
+  const availableGlobalPollutants = useMemo(() => {
+    const found = new Set<string>()
+    for (const s of stations) {
+      if (typeof s.pm25 === 'number' && s.pm25 >= 0) found.add('pm25')
+      if (typeof s.pm10 === 'number' && s.pm10 >= 0) found.add('pm10')
+      if (typeof s.so2 === 'number' && s.so2 >= 0) found.add('so2')
+      if (typeof s.no2 === 'number' && s.no2 >= 0) found.add('no2')
+      if (typeof s.o3 === 'number' && s.o3 >= 0) found.add('o3')
+      if (typeof s.co === 'number' && s.co >= 0) found.add('co')
+      if (found.size === 6) break
+    }
+    return found
+  }, [stations])
+
   // Commune autocomplete search effect
   useEffect(() => {
     if (communeQuery.length < 3 || selectedFromAutocomplete) {
@@ -573,7 +587,7 @@ export function Dashboard({ stations }: DashboardProps) {
                   { key: 'no2', label: 'NO₂', desc: 'Dióxido Nitrógeno (µg/m³)' },
                   { key: 'o3', label: 'O₃', desc: 'Ozono (µg/m³)' },
                   { key: 'co', label: 'CO', desc: 'Monóxido Carbono (mg/m³)' },
-                ].map((p) => {
+                ].filter(p => p.key === 'all' || availableGlobalPollutants.has(p.key)).map((p) => {
                   const isActive = activePollutant === p.key
                   return (
                     <button
