@@ -167,16 +167,20 @@ function computeRegionStats(stns: Station[]) {
         .sort((a, b) => SEVERITY_ORDER.indexOf(b.worstCategory) - SEVERITY_ORDER.indexOf(a.worstCategory))
 
     // Legal violations
-    const violations: { station: string; locality: string; pollutant: string; value: number; decreto: string }[] = []
+    const violations: { station: string; locality: string; pollutant: string; value: number; avg24h: number | null; decreto: string }[] = []
     for (const s of withData) {
         for (const p of POLLUTANTS) {
             const val = s[p.key as keyof Station] as number | undefined | null
-            if (typeof val === 'number' && val >= 0 && exceedsLegal(val, p.key)) {
+            const avg24h = p.key === 'pm25' ? (s.pm25Avg24h ?? null) : p.key === 'pm10' ? (s.pm10Avg24h ?? null) : null
+            const valToCompare = avg24h !== null ? avg24h : val
+            
+            if (typeof valToCompare === 'number' && valToCompare >= 0 && exceedsLegal(valToCompare, p.key)) {
                 violations.push({
                     station: s.nombre,
                     locality: s.locality,
                     pollutant: p.label,
-                    value: val,
+                    value: val ?? 0,
+                    avg24h: avg24h,
                     decreto: LEGAL_LIMITS[p.key].decreto,
                 })
             }
@@ -641,6 +645,20 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                                                 <div style={{ width: 7, height: 7, borderRadius: '50%', background: worst?.color ?? COLOR_SINDATOS, flexShrink: 0 }} />
                                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                                     <span style={{ fontSize: 10, fontWeight: 700, color: '#2d2a24' }}>{s.nombre}</span>
+                                                                    {(s.pm25Avg24h !== undefined || s.pm10Avg24h !== undefined) && (
+                                                                        <div style={{ fontSize: 8, color: '#6e685e', marginTop: 2, display: 'flex', gap: 6 }}>
+                                                                            {s.pm25Avg24h !== null && s.pm25Avg24h !== undefined && (
+                                                                                <span>
+                                                                                    MP2.5 24h: <strong>{Math.round(s.pm25Avg24h)} µg/m³</strong>
+                                                                                </span>
+                                                                            )}
+                                                                            {s.pm10Avg24h !== null && s.pm10Avg24h !== undefined && (
+                                                                                <span>
+                                                                                    MP10 24h: <strong>{Math.round(s.pm10Avg24h)} µg/m³</strong>
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                                 <div style={{ display: 'flex', gap: 4, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                                                                     {POLLUTANTS.map(p => {
@@ -730,7 +748,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
                                                 <thead>
                                                     <tr style={{ background: `${COLOR_EMERGENCIA}12` }}>
-                                                        {['Estación', 'Comuna', 'Parámetro', 'Valor', 'Decreto'].map(h => (
+                                                        {['Estación', 'Comuna', 'Parámetro', 'Valor Inst.', 'Móvil 24h', 'Decreto'].map(h => (
                                                             <th key={h} style={{ padding: '7px 10px', textAlign: 'left', fontWeight: 800, color: '#4a453c', fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</th>
                                                         ))}
                                                     </tr>
@@ -738,12 +756,14 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                                 <tbody>
                                                     {stats.violations.map((v, i) => {
                                                         const displayVal = v.pollutant === 'CO' ? (v.value / 1000).toFixed(2) + ' mg/m³' : Math.round(v.value) + ' µg/m³'
+                                                        const displayAvg = v.avg24h !== null ? Math.round(v.avg24h) + ' µg/m³' : '—'
                                                         return (
                                                             <tr key={i} style={{ borderTop: '1px solid #fde8ea', background: i % 2 === 0 ? '#fff' : '#fff9f9' }}>
                                                                 <td style={{ padding: '6px 10px', fontWeight: 700, color: '#2d2a24' }}>{v.station}</td>
                                                                 <td style={{ padding: '6px 10px', color: '#6e685e' }}>{v.locality}</td>
                                                                 <td style={{ padding: '6px 10px', fontWeight: 700, color: COLOR_ALERTA }}>{v.pollutant}</td>
-                                                                <td style={{ padding: '6px 10px', fontWeight: 900, color: COLOR_EMERGENCIA, fontVariantNumeric: 'tabular-nums' }}>{displayVal}</td>
+                                                                <td style={{ padding: '6px 10px', fontVariantNumeric: 'tabular-nums', color: '#6e685e' }}>{displayVal}</td>
+                                                                <td style={{ padding: '6px 10px', fontWeight: 900, color: COLOR_EMERGENCIA, fontVariantNumeric: 'tabular-nums' }}>{displayAvg}</td>
                                                                 <td style={{ padding: '6px 10px', color: '#8c8273', fontSize: 8 }}>{v.decreto}</td>
                                                             </tr>
                                                         )
