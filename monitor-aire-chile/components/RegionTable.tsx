@@ -83,9 +83,8 @@ export function RegionTable({ stations, activePollutant, onSelectStation, search
     direction: SortDirection
   }) => (
     <svg
-      className={`ml-1 inline-block h-3 w-3 transition-transform duration-200 ${
-        active ? 'text-emerald-600 dark:text-emerald-400' : 'text-[#8c8273] dark:text-slate-600'
-      } ${active && direction === 'desc' ? 'rotate-180' : ''}`}
+      className={`ml-1 inline-block h-3 w-3 transition-transform duration-200 ${active ? 'text-emerald-600 dark:text-emerald-400' : 'text-[#8c8273] dark:text-slate-600'
+        } ${active && direction === 'desc' ? 'rotate-180' : ''}`}
       fill="none"
       viewBox="0 0 24 24"
       stroke="currentColor"
@@ -105,6 +104,8 @@ export function RegionTable({ stations, activePollutant, onSelectStation, search
         worstColor: string
         worstIndex: number
         activeMax: number | null
+        overallMax: number | null
+        overallMaxPollutant: string | null
       }
     >()
 
@@ -117,6 +118,9 @@ export function RegionTable({ stations, activePollutant, onSelectStation, search
           worstColor: '#64748b',
           worstIndex: -1,
           activeMax: null,
+          // Overall maximum across all pollutants when viewing "all"
+          overallMax: null as number | null,
+          overallMaxPollutant: null as string | null,
         })
       }
       const row = map.get(s.region)!
@@ -135,6 +139,23 @@ export function RegionTable({ stations, activePollutant, onSelectStation, search
         if (!isAll && typeof val === 'number') {
           row.activeMax =
             row.activeMax === null ? val : Math.max(row.activeMax, val)
+        }
+        // Ensure sorting works when viewing all pollutants by using overall max as activeMax
+        if (isAll) {
+          row.activeMax = row.overallMax
+        }
+        // When viewing all pollutants, compute the overall maximum value across any pollutant
+        if (isAll) {
+          const pollutantKeys: (keyof Station)[] = ['pm25', 'pm10', 'so2', 'no2', 'o3', 'co']
+          for (const pk of pollutantKeys) {
+            const pval = s[pk] as number | undefined
+            if (typeof pval === 'number' && pval >= 0) {
+              if (row.overallMax === null || pval > row.overallMax) {
+                row.overallMax = pval
+                row.overallMaxPollutant = pk as string
+              }
+            }
+          }
         }
       }
     }
@@ -241,262 +262,266 @@ export function RegionTable({ stations, activePollutant, onSelectStation, search
       >
         <div className="overflow-hidden overflow-x-auto">
           <table className="w-full text-left text-sm text-[#4a453c] dark:text-slate-300">
-          <thead className="bg-[#e4dec9]/30 dark:bg-slate-900/70 text-xs font-semibold uppercase tracking-wider text-[#6e685e] dark:text-slate-400 border-b border-[#d4cebe]/40 dark:border-slate-800/40">
-            <tr>
-              <th className="w-12 px-4 py-3"></th>
-              <th
-                className="cursor-pointer select-none px-4 py-3 font-medium transition-colors hover:text-[#2d2a24] dark:hover:text-slate-200"
-                onClick={() => handleSort('region')}
-              >
-                Región / Localidad
-                <SortIcon active={sortConfig.key === 'region'} direction={sortConfig.direction} />
-              </th>
-              <th
-                className="cursor-pointer select-none px-4 py-3 text-center font-medium transition-colors hover:text-[#2d2a24] dark:hover:text-slate-200"
-                onClick={() => handleSort('count')}
-              >
-                Estaciones
-                <SortIcon active={sortConfig.key === 'count'} direction={sortConfig.direction} />
-              </th>
-              <th
-                className="cursor-pointer select-none px-4 py-3 font-medium transition-colors hover:text-[#2d2a24] dark:hover:text-slate-200"
-                onClick={() => handleSort('severity')}
-              >
-                Peor calidad
-                <SortIcon active={sortConfig.key === 'severity'} direction={sortConfig.direction} />
-              </th>
-              <th
-                className="cursor-pointer select-none px-4 py-3 text-right font-medium transition-colors hover:text-[#2d2a24] dark:hover:text-slate-200"
-                onClick={() => handleSort('activeMax')}
-              >
-                Máx {activePollutant.toUpperCase()}
-                <SortIcon active={sortConfig.key === 'activeMax'} direction={sortConfig.direction} />
-              </th>
-              <th className="px-4 py-3 text-center font-medium">Semáforo</th>
-            </tr>
-          </thead>
-
-          {rows.map((row) => {
-            const isOpen = expandedRegions.has(row.region)
-
-            return (
-              <tbody key={row.region} className="group/region">
-                {/* Fila principal del acordeón */}
-                <tr
-                  onClick={() => toggleRegion(row.region)}
-                  className="cursor-pointer border-b border-[#d4cebe]/50 dark:border-slate-800/50 bg-[#faf8f2]/30 dark:bg-slate-950/30 transition-colors duration-200 hover:bg-[#e4dec9]/20 dark:hover:bg-slate-900/50"
+            <thead className="bg-[#e4dec9]/30 dark:bg-slate-900/70 text-xs font-semibold uppercase tracking-wider text-[#6e685e] dark:text-slate-400 border-b border-[#d4cebe]/40 dark:border-slate-800/40">
+              <tr>
+                <th className="w-12 px-4 py-3"></th>
+                <th
+                  className="cursor-pointer select-none px-4 py-3 font-medium transition-colors hover:text-[#2d2a24] dark:hover:text-slate-200"
+                  onClick={() => handleSort('region')}
                 >
-                  <td className="px-4 py-3">
-                    <div
-                      className={`flex h-6 w-6 items-center justify-center rounded-md border border-[#b5ae9b]/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-900/50 transition-transform duration-300 ${
-                        isOpen ? 'rotate-90' : ''
-                      }`}
-                    >
-                      <svg
-                        className="h-3.5 w-3.5 text-[#6e685e] dark:text-slate-400"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={3}
+                  Región / Localidad
+                  <SortIcon active={sortConfig.key === 'region'} direction={sortConfig.direction} />
+                </th>
+                <th
+                  className="cursor-pointer select-none px-4 py-3 text-center font-medium transition-colors hover:text-[#2d2a24] dark:hover:text-slate-200"
+                  onClick={() => handleSort('count')}
+                >
+                  Estaciones
+                  <SortIcon active={sortConfig.key === 'count'} direction={sortConfig.direction} />
+                </th>
+                <th
+                  className="cursor-pointer select-none px-4 py-3 font-medium transition-colors hover:text-[#2d2a24] dark:hover:text-slate-200"
+                  onClick={() => handleSort('severity')}
+                >
+                  Peor calidad
+                  <SortIcon active={sortConfig.key === 'severity'} direction={sortConfig.direction} />
+                </th>
+                <th
+                  className="cursor-pointer select-none px-4 py-3 text-right font-medium transition-colors hover:text-[#2d2a24] dark:hover:text-slate-200"
+                  onClick={() => handleSort('activeMax')}
+                >
+                  Máx {activePollutant.toUpperCase()}
+                  <SortIcon active={sortConfig.key === 'activeMax'} direction={sortConfig.direction} />
+                </th>
+                <th className="px-4 py-3 text-center font-medium">Semáforo</th>
+              </tr>
+            </thead>
+
+            {rows.map((row) => {
+              const isOpen = expandedRegions.has(row.region)
+
+              return (
+                <tbody key={row.region} className="group/region">
+                  {/* Fila principal del acordeón */}
+                  <tr
+                    onClick={() => toggleRegion(row.region)}
+                    className="cursor-pointer border-b border-[#d4cebe]/50 dark:border-slate-800/50 bg-[#faf8f2]/30 dark:bg-slate-950/30 transition-colors duration-200 hover:bg-[#e4dec9]/20 dark:hover:bg-slate-900/50"
+                  >
+                    <td className="px-4 py-3">
+                      <div
+                        className={`flex h-6 w-6 items-center justify-center rounded-md border border-[#b5ae9b]/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-900/50 transition-transform duration-300 ${isOpen ? 'rotate-90' : ''
+                          }`}
                       >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                      </svg>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-[#2d2a24] dark:text-slate-200">
-                    {row.region}
-                  </td>
-                  <td className="px-4 py-3 text-center tabular-nums text-[#6e685e] dark:text-slate-400">
-                    {row.stations.length}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide shadow-lg ${getContrastTextColor(row.worstColor)}`}
-                      style={{ backgroundColor: row.worstColor }}
-                    >
-                      {row.worstCategory}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-bold text-[#2d2a24] dark:text-slate-200">
-                    {activePollutant === 'all'
-                      ? 'N/A'
-                      : (row.activeMax !== null 
-                        ? (activePollutant === 'co' 
-                          ? `${(row.activeMax / 1000).toFixed(2)} mg/m³` 
-                          : `${Math.round(row.activeMax)} µg/m³`)
-                        : '—')}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span
-                      className="inline-block h-3.5 w-3.5 rounded-full ring-2 ring-white/10"
-                      style={{
-                        backgroundColor: row.worstColor,
-                        boxShadow: `0 0 14px ${row.worstColor}80`,
-                      }}
-                      aria-label={`Semáforo ${row.worstCategory}`}
-                    />
-                  </td>
-                </tr>
+                        <svg
+                          className="h-3.5 w-3.5 text-[#6e685e] dark:text-slate-400"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={3}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-[#2d2a24] dark:text-slate-200">
+                      {row.region}
+                    </td>
+                    <td className="px-4 py-3 text-center tabular-nums text-[#6e685e] dark:text-slate-400">
+                      {row.stations.length}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide shadow-lg ${getContrastTextColor(row.worstColor)}`}
+                        style={{ backgroundColor: row.worstColor }}
+                      >
+                        {row.worstCategory}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums font-bold text-[#2d2a24] dark:text-slate-200">
+                      {activePollutant === 'all'
+                        ? (
+                          row.overallMax !== null && row.overallMaxPollutant
+                            ? row.overallMaxPollutant === 'co'
+                              ? `${(row.overallMax / 1000).toFixed(2)} mg/m³ (${row.overallMaxPollutant.toUpperCase()})`
+                              : `${Math.round(row.overallMax)} µg/m³ (${row.overallMaxPollutant.toUpperCase()})`
+                            : '—'
+                        )
+                        : (row.activeMax !== null
+                          ? (activePollutant === 'co'
+                            ? `${(row.activeMax / 1000).toFixed(2)} mg/m³`
+                            : `${Math.round(row.activeMax)} µg/m³`)
+                          : '—')}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span
+                        className="inline-block h-3.5 w-3.5 rounded-full ring-2 ring-white/10"
+                        style={{
+                          backgroundColor: row.worstColor,
+                          boxShadow: `0 0 14px ${row.worstColor}80`,
+                        }}
+                        aria-label={`Semáforo ${row.worstCategory}`}
+                      />
+                    </td>
+                  </tr>
 
-                {/* Contenido expandible con micro-animación */}
-                <tr>
-                  <td colSpan={6} className="p-0">
-                    <div
-                      className="grid transition-[grid-template-rows,opacity,padding] duration-300 ease-out"
-                      style={{
-                        gridTemplateRows: isOpen ? '1fr' : '0fr',
-                        opacity: isOpen ? 1 : 0,
-                      }}
-                    >
-                      <div className="overflow-hidden">
-                        <div className="border-b border-[#d4cebe]/30 dark:border-slate-800/40 bg-[#e4dec9]/10 dark:bg-slate-950/20 px-4 py-4 sm:px-6">
-                          {/* Sub-listado de estaciones */}
-                          <div className="space-y-2">
-                            {row.stations
-                              .sort((a, b) => a.nombre.localeCompare(b.nombre))
-                              .map((s) => {
-                                const pollutantsList = [
-                                  { key: 'pm25', label: 'PM2.5' },
-                                  { key: 'pm10', label: 'PM10' },
-                                  { key: 'so2', label: 'SO₂' },
-                                  { key: 'no2', label: 'NO₂' },
-                                  { key: 'o3', label: 'O₃' },
-                                  { key: 'co', label: 'CO' },
-                                ]
+                  {/* Contenido expandible con micro-animación */}
+                  <tr>
+                    <td colSpan={6} className="p-0">
+                      <div
+                        className="grid transition-[grid-template-rows,opacity,padding] duration-300 ease-out"
+                        style={{
+                          gridTemplateRows: isOpen ? '1fr' : '0fr',
+                          opacity: isOpen ? 1 : 0,
+                        }}
+                      >
+                        <div className="overflow-hidden">
+                          <div className="border-b border-[#d4cebe]/30 dark:border-slate-800/40 bg-[#e4dec9]/10 dark:bg-slate-950/20 px-4 py-4 sm:px-6">
+                            {/* Sub-listado de estaciones */}
+                            <div className="space-y-2">
+                              {row.stations
+                                .sort((a, b) => a.nombre.localeCompare(b.nombre))
+                                .map((s) => {
+                                  const pollutantsList = [
+                                    { key: 'pm25', label: 'PM2.5' },
+                                    { key: 'pm10', label: 'PM10' },
+                                    { key: 'so2', label: 'SO₂' },
+                                    { key: 'no2', label: 'NO₂' },
+                                    { key: 'o3', label: 'O₃' },
+                                    { key: 'co', label: 'CO' },
+                                  ]
 
-                                return (
-                                  <div
-                                    key={s.id}
-                                    onClick={() => onSelectStation?.(s)}
-                                    className="flex flex-col gap-3 rounded-lg border border-[#d4cebe]/60 dark:border-slate-800/50 bg-white/40 dark:bg-slate-900/40 p-3 cursor-pointer transition-all hover:bg-[#e4dec9]/20 dark:hover:bg-slate-800/65 hover:border-[#b5ae9b]/60 dark:hover:border-slate-700/50 sm:flex-row sm:items-center sm:justify-between"
-                                  >
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-2">
-                                        <p className="truncate text-sm font-medium text-[#2d2a24] dark:text-slate-200">
-                                          {s.nombre}
-                                        </p>
-                                        <span className="rounded bg-[#e4dec9]/40 dark:bg-slate-800/60 px-1.5 py-0.5 text-[9px] font-bold text-[#6e685e] dark:text-slate-400 border border-[#d4cebe]/50 dark:border-slate-700/30">
-                                          {s.locality}
-                                        </span>
-                                        {typeof (s as any).distanceKm === 'number' && (
-                                          <span className="rounded bg-emerald-500/10 dark:bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
-                                            A {(s as any).distanceKm.toFixed(1)} km
+                                  return (
+                                    <div
+                                      key={s.id}
+                                      onClick={() => onSelectStation?.(s)}
+                                      className="flex flex-col gap-3 rounded-lg border border-[#d4cebe]/60 dark:border-slate-800/50 bg-white/40 dark:bg-slate-900/40 p-3 cursor-pointer transition-all hover:bg-[#e4dec9]/20 dark:hover:bg-slate-800/65 hover:border-[#b5ae9b]/60 dark:hover:border-slate-700/50 sm:flex-row sm:items-center sm:justify-between"
+                                    >
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <p className="truncate text-sm font-medium text-[#2d2a24] dark:text-slate-200">
+                                            {s.nombre}
+                                          </p>
+                                          <span className="rounded bg-[#e4dec9]/40 dark:bg-slate-800/60 px-1.5 py-0.5 text-[9px] font-bold text-[#6e685e] dark:text-slate-400 border border-[#d4cebe]/50 dark:border-slate-700/30">
+                                            {s.locality}
                                           </span>
-                                        )}
+                                          {typeof (s as any).distanceKm === 'number' && (
+                                            <span className="rounded bg-emerald-500/10 dark:bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                                              A {(s as any).distanceKm.toFixed(1)} km
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-[11px] text-[#8c8273] dark:text-slate-500 mt-0.5">
+                                          ID OpenAQ: {s.id}
+                                        </p>
                                       </div>
-                                      <p className="text-[11px] text-[#8c8273] dark:text-slate-500 mt-0.5">
-                                        ID OpenAQ: {s.id}
-                                      </p>
-                                    </div>
 
-                                    <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-                                      {/* Lista de Contaminantes */}
-                                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                                        {pollutantsList.map((p) => {
-                                          const val = s[p.key as keyof Station] as number | undefined
-                                          if (typeof val !== 'number' || val < 0) return null
+                                      <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                                        {/* Lista de Contaminantes */}
+                                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                          {pollutantsList.map((p) => {
+                                            const val = s[p.key as keyof Station] as number | undefined
+                                            if (typeof val !== 'number' || val < 0) return null
 
-                                          const ica = getICACategory(val, p.key as any)
-                                          const isCO = p.key === 'co'
-                                          const displayVal = isCO ? (val / 1000).toFixed(1) : Math.round(val)
-                                          const isCurrentActive = activePollutant === p.key
-                                          const textColorClass = getContrastTextColor(ica.color)
+                                            const ica = getICACategory(val, p.key as any)
+                                            const isCO = p.key === 'co'
+                                            const displayVal = isCO ? (val / 1000).toFixed(1) : Math.round(val)
+                                            const isCurrentActive = activePollutant === p.key
+                                            const textColorClass = getContrastTextColor(ica.color)
 
-                                          return (
-                                            <div 
-                                              key={p.key} 
-                                              className={`flex items-center gap-1 bg-white/40 dark:bg-slate-950/40 border border-[#d4cebe]/50 dark:border-slate-800/60 px-2 py-0.5 rounded-lg text-xs transition-all duration-200 ${
-                                                isCurrentActive 
-                                                  ? 'ring-2 ring-emerald-500/50 scale-[1.03] bg-emerald-50/50 dark:bg-slate-900/80 border-emerald-500/40 dark:border-slate-700/80 shadow-[0_0_10px_rgba(16,185,129,0.15)]' 
-                                                  : ''
-                                              }`}
-                                            >
-                                              <span className="text-[9px] font-semibold text-[#8c8273] dark:text-slate-500 uppercase tracking-wider">
-                                                {p.label}
-                                              </span>
-                                              <span
-                                                className={`rounded px-1 text-[11px] font-black tabular-nums shadow-sm ${textColorClass}`}
-                                                style={{
-                                                  backgroundColor: ica.color,
-                                                  boxShadow: `0 0 6px ${ica.color}50`,
-                                                }}
+                                            return (
+                                              <div
+                                                key={p.key}
+                                                className={`flex items-center gap-1 bg-white/40 dark:bg-slate-950/40 border border-[#d4cebe]/50 dark:border-slate-800/60 px-2 py-0.5 rounded-lg text-xs transition-all duration-200 ${isCurrentActive
+                                                    ? 'ring-2 ring-emerald-500/50 scale-[1.03] bg-emerald-50/50 dark:bg-slate-900/80 border-emerald-500/40 dark:border-slate-700/80 shadow-[0_0_10px_rgba(16,185,129,0.15)]'
+                                                    : ''
+                                                  }`}
                                               >
-                                                {displayVal}
-                                              </span>
-                                            </div>
-                                          )
-                                        })}
-                                      </div>
+                                                <span className="text-[9px] font-semibold text-[#8c8273] dark:text-slate-500 uppercase tracking-wider">
+                                                  {p.label}
+                                                </span>
+                                                <span
+                                                  className={`rounded px-1 text-[11px] font-black tabular-nums shadow-sm ${textColorClass}`}
+                                                  style={{
+                                                    backgroundColor: ica.color,
+                                                    boxShadow: `0 0 6px ${ica.color}50`,
+                                                  }}
+                                                >
+                                                  {displayVal}
+                                                </span>
+                                              </div>
+                                            )
+                                          })}
+                                        </div>
 
-                                      {/* Timestamp */}
-                                      <div className="hidden text-right sm:block sm:w-28">
-                                        <p className="text-[10px] text-[#8c8273] dark:text-slate-500">
-                                          {s.lastUpdated
-                                            ? new Date(s.lastUpdated).toLocaleString('es-CL', {
+                                        {/* Timestamp */}
+                                        <div className="hidden text-right sm:block sm:w-28">
+                                          <p className="text-[10px] text-[#8c8273] dark:text-slate-500">
+                                            {s.lastUpdated
+                                              ? new Date(s.lastUpdated).toLocaleString('es-CL', {
                                                 day: '2-digit',
                                                 month: 'short',
                                                 hour: '2-digit',
                                                 minute: '2-digit',
                                               })
-                                            : 'N/D'}
-                                        </p>
-                                      </div>
+                                              : 'N/D'}
+                                          </p>
+                                        </div>
 
-                                      {/* Indicador semáforo */}
-                                      <div className="flex items-center justify-center sm:w-6">
-                                        {(() => {
-                                          const isAll = activePollutant === 'all'
-                                          const activeVal = isAll ? null : s[activePollutant]
-                                          const activeIca = isAll
-                                            ? getWorstICACategory(s)
-                                            : (typeof activeVal === 'number' && activeVal >= 0 ? getICACategory(activeVal, activePollutant as any) : null)
-                                          if (activeIca) {
-                                            return (
-                                              <span
-                                                className="inline-block h-3.5 w-3.5 rounded-full"
-                                                style={{
-                                                  backgroundColor: activeIca.color,
-                                                  boxShadow: `0 0 10px ${activeIca.color}`,
-                                                }}
-                                              />
-                                            )
-                                          }
-                                          return <span className="inline-block h-3.5 w-3.5 rounded-full bg-slate-400 dark:bg-slate-700" />
-                                        })()}
+                                        {/* Indicador semáforo */}
+                                        <div className="flex items-center justify-center sm:w-6">
+                                          {(() => {
+                                            const isAll = activePollutant === 'all'
+                                            const activeVal = isAll ? null : s[activePollutant]
+                                            const activeIca = isAll
+                                              ? getWorstICACategory(s)
+                                              : (typeof activeVal === 'number' && activeVal >= 0 ? getICACategory(activeVal, activePollutant as any) : null)
+                                            if (activeIca) {
+                                              return (
+                                                <span
+                                                  className="inline-block h-3.5 w-3.5 rounded-full"
+                                                  style={{
+                                                    backgroundColor: activeIca.color,
+                                                    boxShadow: `0 0 10px ${activeIca.color}`,
+                                                  }}
+                                                />
+                                              )
+                                            }
+                                            return <span className="inline-block h-3.5 w-3.5 rounded-full bg-slate-400 dark:bg-slate-700" />
+                                          })()}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                )
-                              })}
+                                  )
+                                })}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            )
-          })}
-        </table>
-      </div>
-      {!isMinimized && (
-        <div className="flex justify-center border-t border-[#d4cebe]/40 dark:border-slate-800/40 bg-[#e4dec9]/10 dark:bg-slate-900/10 px-4 py-3.5">
-          <button
-            type="button"
-            onClick={() => {
-              setIsMinimized(true)
-              document.getElementById('toggle-minimize-table-btn')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-            }}
-            className="flex items-center gap-1.5 rounded-lg border border-[#b5ae9b]/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-950/40 px-4 py-2 text-xs font-bold text-[#6e685e] dark:text-slate-400 transition-all hover:bg-[#e4dec9]/50 dark:hover:bg-slate-800/60 hover:text-[#2d2a24] dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-          >
-            <svg className="h-3.5 w-3.5 text-[#6e685e] dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
-            </svg>
-            Minimizar Tabla de Regiones
-          </button>
+                    </td>
+                  </tr>
+                </tbody>
+              )
+            })}
+          </table>
         </div>
-      )}
+        {!isMinimized && (
+          <div className="flex justify-center border-t border-[#d4cebe]/40 dark:border-slate-800/40 bg-[#e4dec9]/10 dark:bg-slate-900/10 px-4 py-3.5">
+            <button
+              type="button"
+              onClick={() => {
+                setIsMinimized(true)
+                document.getElementById('toggle-minimize-table-btn')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+              }}
+              className="flex items-center gap-1.5 rounded-lg border border-[#b5ae9b]/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-950/40 px-4 py-2 text-xs font-bold text-[#6e685e] dark:text-slate-400 transition-all hover:bg-[#e4dec9]/50 dark:hover:bg-slate-800/60 hover:text-[#2d2a24] dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+            >
+              <svg className="h-3.5 w-3.5 text-[#6e685e] dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+              </svg>
+              Minimizar Tabla de Regiones
+            </button>
+          </div>
+        )}
+      </div>
     </div>
-  </div>
   )
 }

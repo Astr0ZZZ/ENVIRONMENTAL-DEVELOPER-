@@ -4,6 +4,21 @@ import fs from 'fs'
 import path from 'path'
 import { getChileRegionAndLocality } from './chile-regions'
 
+// ─── DEUDA TÉCNICA — Promedio Móvil 24h ──────────────────────────────────────
+// ESTADO ACTUAL: El servidor obtiene el ÚLTIMO VALOR PUNTUAL vía /locations/{id}/latest.
+// REQUERIDO (DS N°12/2011 MMA): Promedio 24h = Σ(24 muestras horarias) / 24.
+//
+// PENDIENTE: Migrar a /sensors/{sensorId}/measurements?period_name=hour&limit=24
+//            y almacenar un ring-buffer de 24 entradas por estación en el caché persistente.
+//
+// IMPACTO: Hasta implementar esto, todos los estados de categoría son "estimación técnica"
+//          basada en el dato más reciente, NO en el promedio móvil oficial.
+//          Por eso la interfaz usa "Estimación ICA" y NO "GEC" (que es resolución administrativa).
+//
+// Ver: Manual Maestro de Referencia §2.1 — Motor de Datos
+// ─────────────────────────────────────────────────────────────────────────────
+
+
 const OPENAQ_BASE = 'https://api.openaq.org/v3'
 const CONCURRENCY = 2
 const FETCH_TIMEOUT = 8000

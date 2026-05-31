@@ -18,13 +18,13 @@ interface RegionReportProps {
     onClose: () => void
 }
 
-// ─── Normativa legal chilena ───────────────────────────────────────────────
+// â”€â”€â”€ Normativa legal chilena â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const LEGAL_LIMITS: Record<string, { value: number; decreto: string; label: string; unit: string }> = {
     pm25: { value: 50, decreto: 'DS N°12/2011 MMA', label: 'MP2,5 límite 24h', unit: 'µg/m³' },
     pm10: { value: 130, decreto: 'DS N°12/2021 MMA', label: 'MP10 límite 24h', unit: 'µg/m³' },
-    so2: { value: 250, decreto: 'OMS / NCh', label: 'SO₂ referencia', unit: 'µg/m³' },
-    no2: { value: 200, decreto: 'OMS / NCh', label: 'NO₂ referencia', unit: 'µg/m³' },
-    o3: { value: 160, decreto: 'OMS / NCh', label: 'O₃ referencia', unit: 'µg/m³' },
+    so2: { value: 250, decreto: 'OMS / NCh', label: 'SOâ‚‚ referencia', unit: 'µg/m³' },
+    no2: { value: 200, decreto: 'OMS / NCh', label: 'NOâ‚‚ referencia', unit: 'µg/m³' },
+    o3: { value: 160, decreto: 'OMS / NCh', label: 'Oâ‚ƒ referencia', unit: 'µg/m³' },
     co: { value: 10, decreto: 'OMS / NCh', label: 'CO referencia', unit: 'mg/m³' },
 }
 
@@ -49,13 +49,13 @@ const ICA_COLORS: Record<string, string> = {
 const POLLUTANTS = [
     { key: 'pm25', label: 'PM2.5', unit: 'µg/m³', isCO: false },
     { key: 'pm10', label: 'PM10', unit: 'µg/m³', isCO: false },
-    { key: 'so2', label: 'SO₂', unit: 'µg/m³', isCO: false },
-    { key: 'no2', label: 'NO₂', unit: 'µg/m³', isCO: false },
-    { key: 'o3', label: 'O₃', unit: 'µg/m³', isCO: false },
+    { key: 'so2', label: 'SOâ‚‚', unit: 'µg/m³', isCO: false },
+    { key: 'no2', label: 'NOâ‚‚', unit: 'µg/m³', isCO: false },
+    { key: 'o3', label: 'Oâ‚ƒ', unit: 'µg/m³', isCO: false },
     { key: 'co', label: 'CO', unit: 'mg/m³', isCO: true },
 ] as const
 
-// ─── Helpers ───────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function hasAnyData(s: Station): boolean {
     return POLLUTANTS.some(p => {
         const v = s[p.key as keyof Station]
@@ -89,9 +89,10 @@ function getGECLevel(pm25: number | null | undefined): string | null {
 
 function getRegionGECLevel(stns: Station[]): string | null {
     let worst: string | null = null
-    const order = ['Alerta', 'Preemergencia', 'Emergencia']
+    const order = ['Bueno', 'Regular', 'Alerta', 'Preemergencia', 'Emergencia']
     for (const s of stns) {
-        const lvl = getGECLevel(s.pm25 ?? null)
+        const ica = getWorstICACategory(s)
+        const lvl = ica?.categoria ?? null
         if (lvl && (!worst || order.indexOf(lvl) > order.indexOf(worst))) {
             worst = lvl
         }
@@ -155,7 +156,7 @@ function computeRegionStats(stns: Station[]) {
     return { categoryCounts, pollutantStats, communes, violations, withData: withData.length, total: stns.length }
 }
 
-// ─── SVG Components ────────────────────────────────────────────────────────
+// â”€â”€â”€ SVG Components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function DonutChart({ data, size = 96 }: { data: { label: string; count: number; color: string }[]; size?: number }) {
     const total = data.reduce((a, b) => a + b.count, 0)
@@ -196,8 +197,8 @@ function HorizontalBar({
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#4a453c' }}>{label}</span>
                 <span style={{ fontSize: 10, fontWeight: 800, color: color, fontVariantNumeric: 'tabular-nums' }}>
-                    {value !== null ? `${value < 10 ? value.toFixed(2) : Math.round(value)} ${unit}` : '—'}
-                    {exceeds && <span style={{ marginLeft: 4, fontSize: 8, background: COLOR_EMERGENCIA, color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 900 }}>↑ {decreto}</span>}
+                    {value !== null ? `${value < 10 ? value.toFixed(2) : Math.round(value)} ${unit}` : 'â€”'}
+                    {exceeds && <span style={{ marginLeft: 4, fontSize: 8, background: COLOR_EMERGENCIA, color: '#fff', borderRadius: 3, padding: '1px 4px', fontWeight: 900 }}>â†‘ {decreto}</span>}
                 </span>
             </div>
             <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: H }}>
@@ -217,7 +218,15 @@ function HorizontalBar({
     )
 }
 
-// ─── Main Component ────────────────────────────────────────────────────────
+// â”€â”€â”€ Helper PDF â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+function hexToRgb(hex: string): [number, number, number] {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+    return result
+        ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
+        : [100, 116, 139]
+}
+
+// â”€â”€â”€ Main Component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export function RegionReport({ stations, onClose }: RegionReportProps) {
     const [selectedRegion, setSelectedRegion] = useState('')
     const [isGenerating, setIsGenerating] = useState(false)
@@ -235,57 +244,264 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
     const dateOnly = new Date().toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' })
 
     const handleGeneratePDF = useCallback(async () => {
-        if (!selectedRegion || !stats || !reportRef.current) return
+        if (!selectedRegion || !stats) return
         setIsGenerating(true)
-        setProgress(15)
+        setProgress(10)
         try {
-            const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
-                import('jspdf'), import('html2canvas')
-            ])
-            setProgress(35)
-            const canvas = await html2canvas(reportRef.current, {
-                scale: 2.5, useCORS: true, backgroundColor: '#faf8f2', logging: false,
-            })
-            setProgress(70)
-            const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-            const pageW = pdf.internal.pageSize.getWidth()
-            const pageH = pdf.internal.pageSize.getHeight()
-            const margin = 10
-            const contentW = pageW - margin * 2
-            const imgRatio = canvas.height / canvas.width
-            const scaledH = contentW * imgRatio
-            const pagesNeeded = Math.ceil(scaledH / (pageH - margin * 2))
+            const { jsPDF } = await import('jspdf')
+            await import('jspdf-autotable')
+            setProgress(25)
 
-            for (let i = 0; i < pagesNeeded; i++) {
-                if (i > 0) pdf.addPage()
-                const srcY = i * (canvas.width * ((pageH - margin * 2) / contentW))
-                const srcH = Math.min(canvas.width * ((pageH - margin * 2) / contentW), canvas.height - srcY)
-                if (srcH <= 0) break
-                const pageCanvas = document.createElement('canvas')
-                pageCanvas.width = canvas.width
-                pageCanvas.height = srcH
-                const ctx = pageCanvas.getContext('2d')!
-                ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH)
-                pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', margin, margin, contentW, srcH * (contentW / canvas.width))
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+            const pageW = doc.internal.pageSize.getWidth()   // 210mm
+            const pageH = doc.internal.pageSize.getHeight()  // 297mm
+            const mL = 14, mR = 14
+            const cW = pageW - mL - mR   // 182mm
+            const FOOTER_H = 30          // reservar espacio footer
+            let y = 14
+
+            // Paginación automática
+            const checkPage = (needed: number) => {
+                if (y + needed > pageH - FOOTER_H) {
+                    doc.addPage()
+                    y = 14
+                }
             }
 
-            setProgress(92)
+            // â”€â”€ HEADER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            doc.setFillColor(0, 229, 163)
+            doc.rect(mL, y, cW, 0.8, 'F')
+            y += 4
+
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.setTextColor(0, 229, 163)
+            doc.text('RED NACIONAL DE MONITOREO OFICIAL · SINCA/MMA · OPENAQ v3', mL, y)
+            y += 6
+
+            doc.setFontSize(18)
+            doc.setTextColor(26, 23, 20)
+            doc.text('Informe de Calidad del Aire', mL, y)
+            y += 7
+
+            doc.setFontSize(12)
+            doc.setTextColor(0, 229, 163)
+            doc.text(selectedRegion, mL, y)
+            y += 5
+
+            doc.setFontSize(7)
+            doc.setTextColor(140, 130, 115)
+            doc.text(dateOnly, mL, y)
+
+            // Badge Estimación ICA (esquina superior derecha)
+            if (gecLevel) {
+                const [br, bg, bb] = hexToRgb(ICA_COLORS[gecLevel] ?? '#64748b')
+                doc.setFillColor(br, bg, bb)
+                doc.rect(pageW - mR - 36, 14, 36, 15, 'F')
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(6)
+                doc.setTextColor(255, 255, 255)
+                doc.text('ESTIMACIÃ“N ICA', pageW - mR - 18, 21, { align: 'center' })
+                doc.setFontSize(10)
+                doc.text(gecLevel.toUpperCase(), pageW - mR - 18, 27, { align: 'center' })
+            }
+
+            y += 5
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(7)
+            doc.setTextColor(140, 130, 115)
+            doc.text(`${stats.withData} estaciones con datos · ${stats.total - stats.withData} sin datos (excluidas)`, pageW - mR, y, { align: 'right' })
+            y += 5
+
+            doc.setDrawColor(212, 206, 190)
+            doc.setLineWidth(0.3)
+            doc.line(mL, y, pageW - mR, y)
+            y += 8
+            setProgress(35)
+
+            // â”€â”€ SECCIÃ“N: Distribución por Categoría ICA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            checkPage(35)
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(8)
+            doc.setTextColor(140, 130, 115)
+            doc.text('DISTRIBUCIÃ“N POR CATEGORÃA ICA', mL, y)
+            y += 5
+
+            const catOrder = ['Bueno', 'Regular', 'Alerta', 'Preemergencia', 'Emergencia']
+            const catRGB: Record<string, [number, number, number]> = {
+                Bueno: [0, 229, 163], Regular: [255, 211, 0], Alerta: [255, 122, 0],
+                Preemergencia: [255, 46, 84], Emergencia: [163, 44, 196],
+            }
+            const catEntries = catOrder.filter(c => (stats.categoryCounts[c] ?? 0) > 0)
+            if (catEntries.length > 0) {
+                const cellW = cW / catEntries.length
+                catEntries.forEach((cat, i) => {
+                    const x = mL + i * cellW
+                    const [cr, cg, cb] = catRGB[cat] ?? [100, 116, 139]
+                    doc.setFillColor(cr, cg, cb)
+                    doc.rect(x, y, cellW - 2, 16, 'F')
+                    const isDark = cat !== 'Bueno' && cat !== 'Regular'
+                    doc.setFont('helvetica', 'bold')
+                    doc.setFontSize(14)
+                    doc.setTextColor(isDark ? 255 : 26, isDark ? 255 : 23, isDark ? 255 : 20)
+                    doc.text(String(stats.categoryCounts[cat] ?? 0), x + (cellW - 2) / 2, y + 9, { align: 'center' })
+                    doc.setFontSize(5.5)
+                    doc.text(cat.toUpperCase(), x + (cellW - 2) / 2, y + 13.5, { align: 'center' })
+                })
+                y += 20
+            }
+            setProgress(50)
+
+            // â”€â”€ SECCIÃ“N: Gráfico comparativo vectorial â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            const pollData = stats.pollutantStats.filter(p => p.avg !== null)
+            if (pollData.length > 0) {
+                checkPage(20 + pollData.length * 11)
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(8)
+                doc.setTextColor(140, 130, 115)
+                doc.text('CONCENTRACIÃ“N PROMEDIO POR CONTAMINANTE vs. LÃMITE NORMATIVO', mL, y)
+                y += 6
+
+                const CEILING: Record<string, number> = {
+                    pm25: 150, pm10: 300, so2: 750, no2: 1200, o3: 600, co: 60,
+                }
+                const BAR_H = 7, GAP = 5, LBL = 16
+                const bMaxW = cW - LBL - 24
+
+                pollData.forEach(p => {
+                    if (p.avg === null) return
+                    checkPage(BAR_H + GAP + 2)
+
+                    const isC = p.key === 'co'
+                    const dAvg = isC ? p.avg / 1000 : p.avg
+                    const dCeil = CEILING[p.key] ?? Math.max(dAvg * 2, 1)
+                    // LEGAL_LIMITS usa unidades de display: mg/m³ para CO, µg/m³ para resto
+                    const dLimit = LEGAL_LIMITS[p.key]?.value ?? dCeil
+                    const unit = isC ? 'mg/m³' : 'µg/m³'
+
+                    const bW = Math.max(1, Math.min((dAvg / dCeil) * bMaxW, bMaxW))
+                    const limX = Math.min((dLimit / dCeil) * bMaxW, bMaxW)
+
+                    // Label
+                    doc.setFont('helvetica', 'bold')
+                    doc.setFontSize(6.5)
+                    doc.setTextColor(74, 69, 60)
+                    doc.text(p.label, mL, y + BAR_H - 1.5)
+
+                    // Track
+                    doc.setFillColor(228, 222, 201)
+                    doc.rect(mL + LBL, y, bMaxW, BAR_H, 'F')
+
+                    // Barra ICA
+                    const ica = getICACategory(p.avg ?? 0, p.key as 'pm10' | 'pm25' | 'so2' | 'no2' | 'o3' | 'co')
+                    const [ir, ig, ib] = hexToRgb(ica.color)
+                    doc.setFillColor(ir, ig, ib)
+                    doc.rect(mL + LBL, y, bW, BAR_H, 'F')
+
+                    // Línea roja discontinua límite normativo (Manual §3.2)
+                    doc.setDrawColor(255, 46, 84)
+                    doc.setLineWidth(0.5)
+                    ;(doc as any).setLineDash([1.5, 1], 0)
+                    doc.line(mL + LBL + limX, y - 1, mL + LBL + limX, y + BAR_H + 1)
+                    ;(doc as any).setLineDash([], 0)
+
+                    // Valor
+                    doc.setFont('helvetica', 'bold')
+                    doc.setFontSize(6)
+                    doc.setTextColor(ir, ig, ib)
+                    doc.text(
+                        `${dAvg < 10 ? dAvg.toFixed(2) : Math.round(dAvg)} ${unit}`,
+                        mL + LBL + bMaxW + 2, y + BAR_H - 1.5
+                    )
+                    y += BAR_H + GAP
+                })
+
+                doc.setFont('helvetica', 'italic')
+                doc.setFontSize(5.5)
+                doc.setTextColor(140, 130, 115)
+                doc.text('Línea roja punteada = límite normativo 24h (DS vigente). Las barras que la superan indican posible superación de norma.', mL, y)
+                y += 8
+            }
+            setProgress(68)
+
+            // â”€â”€ SECCIÃ“N: Tabla de superaciones normativas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            if (stats.violations.length > 0) {
+                checkPage(20)
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(8)
+                doc.setTextColor(140, 130, 115)
+                doc.text(`SUPERACIONES NORMATIVA VIGENTE (${stats.violations.length})`, mL, y)
+                y += 4
+
+                ;(doc as any).autoTable({
+                    startY: y,
+                    head: [['Estación', 'Comuna', 'Parámetro', 'Valor medido', 'Decreto']],
+                    body: stats.violations.map(v => {
+                        const dv = v.pollutant === 'CO'
+                            ? (v.value / 1000).toFixed(2) + ' mg/m³'
+                            : Math.round(v.value) + ' µg/m³'
+                        return [v.station, v.locality, v.pollutant, dv, v.decreto]
+                    }),
+                    styles: { fontSize: 7, cellPadding: 2.5, font: 'helvetica', overflow: 'linebreak' },
+                    headStyles: { fillColor: [255, 46, 84], textColor: 255, fontStyle: 'bold', fontSize: 6.5 },
+                    alternateRowStyles: { fillColor: [255, 249, 249] },
+                    columnStyles: {
+                        0: { cellWidth: 44 },
+                        1: { cellWidth: 32 },
+                        2: { cellWidth: 22 },
+                        3: { fontStyle: 'bold', textColor: [255, 46, 84], cellWidth: 30 },
+                        4: { fontSize: 6, textColor: [140, 130, 115] },
+                    },
+                    margin: { left: mL, right: mR },
+                    didDrawPage: () => { y = (doc as any).lastAutoTable?.finalY ?? y },
+                })
+                const finalY: number = (doc as any).lastAutoTable?.finalY ?? y
+                y = finalY + 6
+            }
+            setProgress(85)
+
+            // â”€â”€ FOOTER (en cada página) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            const totalPages = (doc as any).getNumberOfPages()
+            for (let pg = 1; pg <= totalPages; pg++) {
+                doc.setPage(pg)
+                const fY = pageH - 26
+                doc.setDrawColor(212, 206, 190)
+                doc.setLineWidth(0.3)
+                doc.line(mL, fY, pageW - mR, fY)
+                doc.setFont('helvetica', 'normal')
+                doc.setFontSize(5.5)
+                doc.setTextColor(140, 130, 115)
+                doc.text([
+                    'Fuente: SINCA / Ministerio del Medio Ambiente de Chile, vía OpenAQ v3.',
+                    'Normativa: DS N°12/2021 MMA (MP10) · DS N°12/2011 MMA (MP2.5) · Plan GEC segÃºn PPDA vigente.',
+                    'Limitación: Datos de sensores â€” estimación técnica. No reemplaza informes de la SMA.',
+                    'La categoría "Estimación ICA" NO equivale a una declaración oficial de GEC (resolución administrativa).',
+                    'Quemas RM: Prohibición 365 días desde 26/11/2026 (incluye hojas y escombros).',
+                ], mL, fY + 4, { lineHeightFactor: 1.6 })
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(5.5)
+                doc.setTextColor(100, 116, 139)
+                doc.text(`Pág. ${pg}/${totalPages} · Generado: ${now}`, pageW - mR, fY + 4, { align: 'right' })
+            }
+
+            setProgress(95)
             const safe = selectedRegion.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '')
-            pdf.save(`Informe_CalidadAire_${safe}_${new Date().toISOString().split('T')[0]}.pdf`)
+            doc.save(`Informe_CalidadAire_${safe}_${new Date().toISOString().split('T')[0]}.pdf`)
             setProgress(100)
             setTimeout(() => { setIsGenerating(false); setProgress(0) }, 700)
+
         } catch (e) {
-            console.error(e)
+            console.error('[PDF Error]', e)
+            alert(`Error generando PDF: ${e instanceof Error ? e.message : String(e)}`)
             setIsGenerating(false)
             setProgress(0)
         }
-    }, [selectedRegion, stats])
-
+    }, [selectedRegion, stats, gecLevel, now, dateOnly])
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 py-8">
+        <div className="fixed inset-0 z-[10000] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 py-8">
             <div className="w-full max-w-2xl">
 
-                {/* ── Modal shell ── */}
+                {/* â”€â”€ Modal shell â”€â”€ */}
                 <div className="rounded-2xl overflow-hidden shadow-2xl border border-[#d4cebe]/60 dark:border-slate-700">
 
                     {/* Header */}
@@ -317,7 +533,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                         </label>
                         <select value={selectedRegion} onChange={e => setSelectedRegion(e.target.value)}
                             className="w-full rounded-xl border border-[#d4cebe] dark:border-slate-700 bg-[#faf8f2] dark:bg-slate-900 px-4 py-3 text-sm font-semibold text-[#2d2a24] dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 cursor-pointer appearance-none transition-all">
-                            <option value="">— Elige una región —</option>
+                            <option value="">â€” Elige una región â€”</option>
                             {regions.map(r => <option key={r} value={r}>{r}</option>)}
                         </select>
                     </div>
@@ -336,7 +552,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                         </div>
                     )}
 
-                    {/* ── PDF Preview ── */}
+                    {/* â”€â”€ PDF Preview â”€â”€ */}
                     {selectedRegion && stats && (
                         <>
                             <div className="bg-white/40 dark:bg-slate-950/40 px-4 py-3 border-b border-[#d4cebe] dark:border-slate-800 flex items-center justify-between">
@@ -348,13 +564,13 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                 </span>
                             </div>
 
-                            {/* ══ PRINTABLE REPORT ══ */}
+                            {/* â•â• PRINTABLE REPORT â•â• */}
                             <div ref={reportRef} style={{
                                 background: '#faf8f2', fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
                                 color: '#2d2a24', padding: '32px 36px',
                             }}>
 
-                                {/* ── 1. Header ── */}
+                                {/* â”€â”€ 1. Header â”€â”€ */}
                                 <div style={{ borderBottom: '2.5px solid #00E5A3', paddingBottom: 18, marginBottom: 24 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                         <div>
@@ -378,7 +594,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                                 borderRadius: 10, padding: '8px 14px', display: 'inline-block'
                                             }}>
                                                 <p style={{ fontSize: 8, fontWeight: 700, color: gecLevel ? '#fff' : '#8c8273', margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                                                    Nivel GEC
+                                                    Estimación ICA
                                                 </p>
                                                 <p style={{ fontSize: 14, fontWeight: 900, color: gecLevel ? '#fff' : '#4a453c', margin: '2px 0 0' }}>
                                                     {gecLevel ?? 'Normal'}
@@ -396,24 +612,23 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                         </div>
                                     </div>
 
-                                    {/* GEC notice */}
-                                    {gecLevel && (
+                                    {gecLevel && ['Alerta', 'Preemergencia', 'Emergencia'].includes(gecLevel) && (
                                         <div style={{
                                             marginTop: 14, borderRadius: 8, padding: '8px 12px',
                                             background: `${ICA_COLORS[gecLevel]}15`,
                                             border: `1.5px solid ${ICA_COLORS[gecLevel]}50`,
                                         }}>
                                             <p style={{ fontSize: 9, margin: 0, color: '#4a453c', lineHeight: 1.5 }}>
-                                                <strong style={{ color: ICA_COLORS[gecLevel] }}>⚠ Episodio Crítico Activo — {gecLevel} Ambiental:</strong>{' '}
-                                                {gecLevel === 'Emergencia' && 'Situación de extremo riesgo para la salud pública. PM2.5 ≥ 170 µg/m³ (DS N°12/2011 MMA). Se prohíbe todo uso residencial de combustibles sólidos y paralizan múltiples industrias.'}
-                                                {gecLevel === 'Preemergencia' && 'Nivel de contaminación severa. PM2.5 entre 110–169 µg/m³ (DS N°12/2011 MMA). Se activan restricciones vehiculares adicionales y paralización industrial.'}
-                                                {gecLevel === 'Alerta' && 'Nivel inicial de resguardo preventivo. PM2.5 entre 80–109 µg/m³ (DS N°12/2011 MMA). Se restringe el uso residencial no certificado de leña.'}
+                                                <strong style={{ color: ICA_COLORS[gecLevel] }}>⚠️ Alerta Técnica ICA — {gecLevel} (estimación sensor):</strong>{' '}
+                                                {gecLevel === 'Emergencia' && 'Situación de extremo riesgo para la salud pública. PM2.5 ≥ 170 µg/m³ o PM10 ≥ 330 µg/m³. Estimación técnica — no equivale a declaración oficial de GEC.'}
+                                                {gecLevel === 'Preemergencia' && 'Nivel de contaminación severa. PM2.5 entre 110–169 µg/m³ o PM10 entre 240–329 µg/m³. Estimación técnica — no equivale a declaración oficial de GEC.'}
+                                                {gecLevel === 'Alerta' && 'Nivel inicial de resguardo preventivo. PM2.5 entre 80–109 µg/m³ o PM10 entre 195–239 µg/m³. Estimación técnica — no equivale a declaración oficial de GEC.'}
                                             </p>
                                         </div>
                                     )}
                                 </div>
 
-                                {/* ── 2. Resumen ejecutivo ── */}
+                                {/* â”€â”€ 2. Resumen ejecutivo â”€â”€ */}
                                 <div style={{ marginBottom: 24 }}>
                                     <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#8c8273', marginBottom: 10 }}>
                                         Distribución por Categoría ICA
@@ -441,7 +656,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                     </div>
                                 </div>
 
-                                {/* ── 3. Contaminantes con límite legal ── */}
+                                {/* â”€â”€ 3. Contaminantes con límite legal â”€â”€ */}
                                 <div style={{ marginBottom: 24 }}>
                                     <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#8c8273', marginBottom: 12 }}>
                                         Concentración Promedio por Contaminante
@@ -471,7 +686,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                     </div>
                                 </div>
 
-                                {/* ── 4. Agrupación por comuna ── */}
+                                {/* â”€â”€ 4. Agrupación por comuna â”€â”€ */}
                                 <div style={{ marginBottom: 24 }}>
                                     <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#8c8273', marginBottom: 12 }}>
                                         Detalle por Comuna
@@ -483,7 +698,6 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                                 marginBottom: 10, borderRadius: 12, overflow: 'hidden',
                                                 border: `1.5px solid ${color}40`,
                                             }}>
-                                                {/* Commune header */}
                                                 <div style={{
                                                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                                                     padding: '8px 14px', background: `${color}12`,
@@ -499,7 +713,6 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                                         borderRadius: 20, padding: '3px 10px',
                                                     }}>{commune.worstCategory}</span>
                                                 </div>
-                                                {/* Stations */}
                                                 {commune.stations
                                                     .sort((a, b) => {
                                                         const ai = SEVERITY_ORDER.indexOf(getWorstICACategory(a)?.categoria ?? 'Sin datos')
@@ -554,7 +767,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                     })}
                                 </div>
 
-                                {/* ── 5. Tabla de alertas regulatorias ── */}
+                                {/* â”€â”€ 5. Tabla de alertas regulatorias â”€â”€ */}
                                 {stats.violations.length > 0 && (
                                     <div style={{ marginBottom: 24 }}>
                                         <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#8c8273', marginBottom: 10 }}>
@@ -571,7 +784,6 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                                 </thead>
                                                 <tbody>
                                                     {stats.violations.map((v, i) => {
-                                                        const limit = LEGAL_LIMITS[POLLUTANTS.find(p => p.label === v.pollutant)?.key ?? '']
                                                         const displayVal = v.pollutant === 'CO' ? (v.value / 1000).toFixed(2) + ' mg/m³' : Math.round(v.value) + ' µg/m³'
                                                         return (
                                                             <tr key={i} style={{ borderTop: '1px solid #fde8ea', background: i % 2 === 0 ? '#fff' : '#fff9f9' }}>
@@ -592,14 +804,16 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                     </div>
                                 )}
 
-                                {/* ── 6. Footer ── */}
+                                {/* â”€â”€ 6. Footer â”€â”€ */}
                                 <div style={{ borderTop: '1px solid #d4cebe', paddingTop: 12, marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                                     <div>
-                                        <p style={{ fontSize: 8, color: '#8c8273', margin: 0, lineHeight: 1.6 }}>
-                                            <strong>Fuente de datos:</strong> SINCA (Sistema de Información Nacional de Calidad del Aire), Ministerio del Medio Ambiente de Chile, a través de OpenAQ v3.<br />
-                                            <strong>Marco normativo:</strong> DS N°12/2021 MMA (MP10) · DS N°12/2011 MMA (MP2,5) · Plan GEC según PPDA vigente.<br />
-                                            <strong>Limitación:</strong> Los datos corresponden a mediciones en tiempo real y pueden contener lecturas inconsistentes o períodos sin telemetría. No reemplaza el informe oficial de la autoridad competente.
-                                        </p>
+                                        <p style={{ fontSize: 8, color: '#8c8273', margin: 0, lineHeight: 1.7 }}>
+                                             <strong>Fuente:</strong> SINCA / Ministerio del Medio Ambiente de Chile, vía OpenAQ v3.<br />
+                                             <strong>Normativa:</strong> DS N°12/2021 MMA (MP10) · DS N°12/2011 MMA (MP2.5) · Plan GEC segÃºn PPDA vigente.<br />
+                                             <strong>Limitación:</strong> Datos de sensores para estimaciones técnicas. No reemplaza informes de la SMA (Superintendencia del Medio Ambiente).<br />
+                                             <strong>GEC:</strong> La categoría «Estimación ICA» NO equivale a una declaración oficial de GEC emitida por resolución administrativa.<br />
+                                             <strong>Quemas:</strong> Prohibición permanente 365 días en la RM desde el 26/11/2026 (incluye quema de hojas y escombros).
+                                         </p>
                                     </div>
                                     <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 16 }}>
                                         <p style={{ fontSize: 8, color: '#8c8273', margin: 0 }}>Generado el</p>
@@ -608,7 +822,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                 </div>
 
                             </div>
-                            {/* ══ END PRINTABLE ══ */}
+                            {/* â•â• END PRINTABLE â•â• */}
 
                             {/* Action bar */}
                             <div className="bg-[#faf8f2] dark:bg-slate-900 px-6 py-4 border-t border-[#d4cebe] dark:border-slate-800 flex items-center justify-between">
@@ -624,7 +838,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                     {!isGenerating && (
                                         <p className="text-xs text-[#8c8273] dark:text-slate-500">
                                             {stats.violations.length > 0
-                                                ? `⚠ ${stats.violations.length} superación${stats.violations.length > 1 ? 'es' : ''} normativa detectada${stats.violations.length > 1 ? 's' : ''}`
+                                                ? `âš  ${stats.violations.length} superación${stats.violations.length > 1 ? 'es' : ''} normativa detectada${stats.violations.length > 1 ? 's' : ''}`
                                                 : 'Sin superaciones normativas detectadas'}
                                         </p>
                                     )}
@@ -632,7 +846,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                 <button onClick={handleGeneratePDF} disabled={isGenerating}
                                     className="flex items-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 disabled:cursor-wait px-5 py-2.5 text-sm font-bold text-white transition-all shadow-lg shadow-emerald-600/20">
                                     {isGenerating ? (
-                                        <><svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Generando…</>
+                                        <><svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Generandoâ€¦</>
                                     ) : (
                                         <><svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>Descargar PDF</>
                                     )}

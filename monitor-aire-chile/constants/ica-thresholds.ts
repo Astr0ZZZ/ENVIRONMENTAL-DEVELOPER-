@@ -1,5 +1,22 @@
 import { ICAResult } from '@/types/openaq'
 
+// ─── Marco normativo ─────────────────────────────────────────────────────────
+// MP2.5: D.S. N°12/2011 MMA (Acuerdo 32/2025) — Límite anual: 15 µg/m³ | Límite diario (P98): 50 µg/m³
+// MP10:  D.S. N°12/2021 MMA — Límite diario (P98): 130 µg/m³ (superado si P98 ≥ 130 o >7 días/año)
+//
+// IMPORTANTE: Los umbrales ICA de este archivo son una escala progresiva de categorías
+// para monitoreo EDUCATIVO/INFORMATIVO (semáforo visual). NO son los límites legales diarios.
+// Los límites legales de 24h (MP2.5=50, MP10=130) están en RegionReport.tsx → LEGAL_LIMITS.
+//
+// Regla de Oro del Dato (Manual Maestro §1.2):
+// - Dato Puntual (Latest): Solo para monitoreo educativo. Prohibido para declarar alertas.
+// - Promedio Móvil 24h: Obligatorio para declarar Alerta/Preemergencia/Emergencia.
+//
+// GEC (Gestión de Episodios Críticos): Es una resolución administrativa del PPDA.
+// NO es una medida de sensor individual. Las etiquetas de esta app son "Estimación ICA".
+// ─────────────────────────────────────────────────────────────────────────────
+
+
 type Threshold = {
   max: number
   categoria: string
