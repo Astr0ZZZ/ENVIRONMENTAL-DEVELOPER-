@@ -29,6 +29,11 @@ const CACHE_FILE_PATH = path.join(process.cwd(), 'lib', 'openaq-cache.json')
 
 /* ---------- cache interfaces & helpers ---------- */
 
+interface MeasurementEntry {
+  value: number
+  time: string
+}
+
 interface CacheStationData {
   pm10: number | null
   pm25: number | null
@@ -44,6 +49,16 @@ interface CacheStationData {
   coUpdated?: string
   lastUpdated?: string
   cachedAt: number
+  pm10History?: MeasurementEntry[]
+  pm25History?: MeasurementEntry[]
+  pm10Avg24h?: number | null
+  pm25Avg24h?: number | null
+}
+
+function calculateAverage24h(history?: MeasurementEntry[]): number | null {
+  if (!history || history.length === 0) return null
+  const sum = history.reduce((acc, curr) => acc + curr.value, 0)
+  return sum / history.length
 }
 
 interface CacheData {
@@ -303,6 +318,84 @@ export async function fetchLocationsServer(): Promise<Station[]> {
             lastUpdated = maxDate.toISOString()
           }
 
+          // --- Historial y Promedio Móvil 24h ---
+          let pm10SensorId: number | null = null
+          let pm25SensorId: number | null = null
+          for (const [idStr, param] of Object.entries(station.sensorMap)) {
+            const sId = Number(idStr)
+            if (param === 'pm10') pm10SensorId = sId
+            if (param === 'pm25') pm25SensorId = sId
+          }
+
+          const existingStation = freshCache.stations[station.id]
+          let pm10History: MeasurementEntry[] = existingStation?.pm10History || []
+          let pm25History: MeasurementEntry[] = existingStation?.pm25History || []
+
+          const dateFrom = new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString()
+
+          if (pm10History.length < 12 && pm10SensorId) {
+            try {
+              console.log(`[openaq] Inicializando historial PM10 para sensor ${pm10SensorId} de ${station.nombre}...`)
+              const histData = await fetchWithTimeout(
+                `${OPENAQ_BASE}/sensors/${pm10SensorId}/measurements?datetime_from=${encodeURIComponent(dateFrom)}&limit=100`
+              )
+              const histResults = Array.isArray(histData.results) ? histData.results : []
+              const hourMap = new Map<string, number>()
+              for (const r of histResults) {
+                const timeStr = r.period?.datetimeTo?.utc || r.period?.datetimeFrom?.utc
+                if (timeStr && typeof r.value === 'number') {
+                  hourMap.set(timeStr, r.value)
+                }
+              }
+              pm10History = Array.from(hourMap.entries()).map(([time, value]) => ({ value, time }))
+              pm10History.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
+              pm10History = pm10History.slice(-24)
+            } catch (err) {
+              console.warn(`[openaq] Error cargando historial inicial PM10 para sensor ${pm10SensorId}:`, err)
+            }
+          }
+
+          if (pm25History.length < 12 && pm25SensorId) {
+            try {
+              console.log(`[openaq] Inicializando historial PM2.5 para sensor ${pm25SensorId} de ${station.nombre}...`)
+              const histData = await fetchWithTimeout(
+                `${OPENAQ_BASE}/sensors/${pm25SensorId}/measurements?datetime_from=${encodeURIComponent(dateFrom)}&limit=100`
+              )
+              const histResults = Array.isArray(histData.results) ? histData.results : []
+              const hourMap = new Map<string, number>()
+              for (const r of histResults) {
+                const timeStr = r.period?.datetimeTo?.utc || r.period?.datetimeFrom?.utc
+                if (timeStr && typeof r.value === 'number') {
+                  hourMap.set(timeStr, r.value)
+                }
+              }
+              pm25History = Array.from(hourMap.entries()).map(([time, value]) => ({ value, time }))
+              pm25History.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
+              pm25History = pm25History.slice(-24)
+            } catch (err) {
+              console.warn(`[openaq] Error cargando historial inicial PM2.5 para sensor ${pm25SensorId}:`, err)
+            }
+          }
+
+          const updateHistory = (history: MeasurementEntry[], val: number | null, timestamp: string | undefined): MeasurementEntry[] => {
+            if (val === null || !timestamp) return history
+            const existingIdx = history.findIndex(h => h.time === timestamp)
+            if (existingIdx !== -1) {
+              history[existingIdx].value = val
+            } else {
+              history.push({ value: val, time: timestamp })
+            }
+            history.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
+            const cutoff = Date.now() - 25 * 60 * 60 * 1000
+            return history.filter(h => new Date(h.time).getTime() >= cutoff).slice(-24)
+          }
+
+          pm10History = updateHistory(pm10History, pm10, pm10Updated)
+          pm25History = updateHistory(pm25History, pm25, pm25Updated)
+
+          const pm10Avg24h = calculateAverage24h(pm10History)
+          const pm25Avg24h = calculateAverage24h(pm25History)
+
           return {
             id: station.id,
             pm10,
@@ -318,6 +411,10 @@ export async function fetchLocationsServer(): Promise<Station[]> {
             o3Updated,
             coUpdated,
             lastUpdated,
+            pm10History,
+            pm25History,
+            pm10Avg24h,
+            pm25Avg24h,
             success: true
           }
         } catch (err) {
@@ -347,6 +444,10 @@ export async function fetchLocationsServer(): Promise<Station[]> {
             o3Updated: val.o3Updated,
             coUpdated: val.coUpdated,
             lastUpdated: val.lastUpdated,
+            pm10History: val.pm10History,
+            pm25History: val.pm25History,
+            pm10Avg24h: val.pm10Avg24h,
+            pm25Avg24h: val.pm25Avg24h,
             cachedAt: Date.now()
           }
         } else {
@@ -425,6 +526,8 @@ export async function fetchLocationsServer(): Promise<Station[]> {
       co: showCo && cached ? (cached.co ?? null) : null,
       lastUpdated: newestFreshUpdate || (cached ? cached.lastUpdated : undefined),
       active: isActive,
+      pm10Avg24h: showPm10 && cached ? (cached.pm10Avg24h ?? null) : null,
+      pm25Avg24h: showPm25 && cached ? (cached.pm25Avg24h ?? null) : null,
     }
   })
 }

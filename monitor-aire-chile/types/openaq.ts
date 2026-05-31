@@ -13,6 +13,8 @@ export interface Station {
   co?: number | null
   lastUpdated?: string
   active?: boolean
+  pm10Avg24h?: number | null
+  pm25Avg24h?: number | null
 }
 
 export interface ICAResult {

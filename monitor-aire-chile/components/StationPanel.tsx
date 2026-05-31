@@ -238,6 +238,18 @@ export function StationPanel({ station, activePollutant, onClose }: StationPanel
                       {mainPollutant === 'co' && mainValue !== null ? (mainValue / 1000).toFixed(2) : Math.round(mainValue ?? 0)}
                       <span className="text-sm font-semibold text-[#6e685e] dark:text-slate-400 ml-1.5">{pollutantInfo[mainPollutant].unit}</span>
                     </p>
+                    {['pm25', 'pm10'].includes(mainPollutant) && (
+                      <div className="mt-3 pt-3 border-t border-[#d4cebe]/40 dark:border-slate-800/40 flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase text-[#8c8273] dark:text-slate-500">
+                          Promedio Móvil 24h (GEC)
+                        </span>
+                        <span className="text-xs font-black text-[#2d2a24] dark:text-slate-200">
+                          {mainPollutant === 'pm25'
+                            ? (station.pm25Avg24h !== null && station.pm25Avg24h !== undefined ? `${Math.round(station.pm25Avg24h)} µg/m³` : 'Cargando...')
+                            : (station.pm10Avg24h !== null && station.pm10Avg24h !== undefined ? `${Math.round(station.pm10Avg24h)} µg/m³` : 'Cargando...')}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

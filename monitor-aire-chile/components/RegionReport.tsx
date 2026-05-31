@@ -89,20 +89,40 @@ function exceedsLegal(val: number, key: string): boolean {
     return display > limit.value
 }
 
-function getGECLevel(pm25: number | null | undefined): string | null {
-    if (typeof pm25 !== 'number' || pm25 < 0) return null
-    for (const t of GEC_THRESHOLDS) {
-        if (pm25 >= t.min) return t.label
+function getStationGECLevel(s: Station): string {
+    const pm25 = s.pm25Avg24h
+    const pm10 = s.pm10Avg24h
+    
+    // Fallback a peor categoría instantánea si no hay promedios 24h
+    if ((pm25 === undefined || pm25 === null) && (pm10 === undefined || pm10 === null)) {
+        return getWorstICACategory(s)?.categoria ?? 'Bueno'
     }
-    return null
+    
+    let pm25Lvl = 'Bueno'
+    if (typeof pm25 === 'number' && pm25 >= 0) {
+        if (pm25 >= 170) pm25Lvl = 'Emergencia'
+        else if (pm25 >= 110) pm25Lvl = 'Preemergencia'
+        else if (pm25 >= 80) pm25Lvl = 'Alerta'
+        else if (pm25 >= 50) pm25Lvl = 'Regular'
+    }
+    
+    let pm10Lvl = 'Bueno'
+    if (typeof pm10 === 'number' && pm10 >= 0) {
+        if (pm10 >= 330) pm10Lvl = 'Emergencia'
+        else if (pm10 >= 240) pm10Lvl = 'Preemergencia'
+        else if (pm10 >= 195) pm10Lvl = 'Alerta'
+        else if (pm10 >= 130) pm10Lvl = 'Regular'
+    }
+    
+    const order = ['Bueno', 'Regular', 'Alerta', 'Preemergencia', 'Emergencia']
+    return order.indexOf(pm25Lvl) > order.indexOf(pm10Lvl) ? pm25Lvl : pm10Lvl
 }
 
 function getRegionGECLevel(stns: Station[]): string | null {
     let worst: string | null = null
     const order = ['Bueno', 'Regular', 'Alerta', 'Preemergencia', 'Emergencia']
     for (const s of stns) {
-        const ica = getWorstICACategory(s)
-        const lvl = ica?.categoria ?? null
+        const lvl = getStationGECLevel(s)
         if (lvl && (!worst || order.indexOf(lvl) > order.indexOf(worst))) {
             worst = lvl
         }
@@ -485,7 +505,7 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                                 borderRadius: 10, padding: '8px 14px', display: 'inline-block'
                                             }}>
                                                 <p style={{ fontSize: 8, fontWeight: 700, color: gecLevel ? '#fff' : '#8c8273', margin: 0, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-                                                    Estimación ICA
+                                                    Recomendación GEC
                                                 </p>
                                                 <p style={{ fontSize: 14, fontWeight: 900, color: gecLevel ? '#fff' : '#4a453c', margin: '2px 0 0' }}>
                                                     {gecLevel ?? 'Normal'}
@@ -510,10 +530,10 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                             border: `1.5px solid ${ICA_COLORS[gecLevel]}50`,
                                         }}>
                                             <p style={{ fontSize: 9, margin: 0, color: '#4a453c', lineHeight: 1.5 }}>
-                                                <strong style={{ color: ICA_COLORS[gecLevel] }}>⚠️ Alerta Técnica ICA — {gecLevel} (estimación sensor):</strong>{' '}
-                                                {gecLevel === 'Emergencia' && 'Situación de extremo riesgo para la salud pública. (Umbral sensor ICA: PM2.5 > 45 µg/m³ o PM10 > 200 µg/m³; umbral GEC oficial: PM2.5 ≥ 170 µg/m³ o PM10 ≥ 330 µg/m³). Estimación técnica — no equivale a declaración oficial de GEC.'}
-                                                {gecLevel === 'Preemergencia' && 'Nivel de contaminación severa. (Umbral sensor ICA: PM2.5 36-45 µg/m³ o PM10 151-200 µg/m³; umbral GEC oficial: PM2.5 110-169 µg/m³ o PM10 240-329 µg/m³). Estimación técnica — no equivale a declaración oficial de GEC.'}
-                                                {gecLevel === 'Alerta' && 'Nivel inicial de resguardo preventivo. (Umbral sensor ICA: PM2.5 26-35 µg/m³ o PM10 101-150 µg/m³; umbral GEC oficial: PM2.5 80-109 µg/m³ o PM10 195-239 µg/m³). Estimación técnica — no equivale a declaración oficial de GEC.'}
+                                                <strong style={{ color: ICA_COLORS[gecLevel] }}>⚠️ Recomendación GEC — {gecLevel} (Móvil 24h / Fallback):</strong>{' '}
+                                                {gecLevel === 'Emergencia' && 'Situación de extremo riesgo para la salud pública. Basado en superación de umbrales oficiales de promedio móvil de 24 horas (PM2.5 ≥ 170 µg/m³ o PM10 ≥ 330 µg/m³).'}
+                                                {gecLevel === 'Preemergencia' && 'Nivel de contaminación severa. Basado en superación de umbrales oficiales de promedio móvil de 24 horas (PM2.5 110-169 µg/m³ o PM10 240-329 µg/m³).'}
+                                                {gecLevel === 'Alerta' && 'Nivel inicial de resguardo preventivo. Basado en superación de umbrales oficiales de promedio móvil de 24 horas (PM2.5 80-109 µg/m³ o PM10 195-239 µg/m³).'}
                                             </p>
                                         </div>
                                     )}
