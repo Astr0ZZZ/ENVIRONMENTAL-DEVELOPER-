@@ -99,7 +99,9 @@ function getStationGECLevel(s: Station): string {
     }
     
     let pm25Lvl = 'Bueno'
+    let hasPm25 = false
     if (typeof pm25 === 'number' && pm25 >= 0) {
+        hasPm25 = true
         if (pm25 >= 170) pm25Lvl = 'Emergencia'
         else if (pm25 >= 110) pm25Lvl = 'Preemergencia'
         else if (pm25 >= 80) pm25Lvl = 'Alerta'
@@ -107,11 +109,18 @@ function getStationGECLevel(s: Station): string {
     }
     
     let pm10Lvl = 'Bueno'
+    let hasPm10 = false
     if (typeof pm10 === 'number' && pm10 >= 0) {
+        hasPm10 = true
         if (pm10 >= 330) pm10Lvl = 'Emergencia'
         else if (pm10 >= 240) pm10Lvl = 'Preemergencia'
         else if (pm10 >= 195) pm10Lvl = 'Alerta'
         else if (pm10 >= 130) pm10Lvl = 'Regular'
+    }
+
+    // Si de verdad no se pudo calcular ninguno de los dos promedios móviles horariados, fallback al peor instantáneo
+    if (!hasPm25 && !hasPm10) {
+        return getWorstICACategory(s)?.categoria ?? 'Bueno'
     }
     
     const order = ['Bueno', 'Regular', 'Alerta', 'Preemergencia', 'Emergencia']

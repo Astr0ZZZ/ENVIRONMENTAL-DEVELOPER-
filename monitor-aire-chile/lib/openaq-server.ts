@@ -235,18 +235,18 @@ export async function fetchLocationsServer(): Promise<Station[]> {
     // Verificar si a la estación A le falta inicializar el historial de 24h para sus sensores activos.
     const hasA25 = Object.values(a.sensorMap).includes('pm25')
     const hasA10 = Object.values(a.sensorMap).includes('pm10')
-    const lacksA = a.active && aCache && (
-      (hasA25 && aCache.pm25History === undefined) ||
-      (hasA10 && aCache.pm10History === undefined)
-    )
+    const lacksA = a.active && (!aCache || (
+      (hasA25 && (!aCache.pm25History || aCache.pm25History.length === 0)) ||
+      (hasA10 && (!aCache.pm10History || aCache.pm10History.length === 0))
+    ))
 
     // Verificar si a la estación B le falta inicializar el historial de 24h para sus sensores activos.
     const hasB25 = Object.values(b.sensorMap).includes('pm25')
     const hasB10 = Object.values(b.sensorMap).includes('pm10')
-    const lacksB = b.active && bCache && (
-      (hasB25 && bCache.pm25History === undefined) ||
-      (hasB10 && bCache.pm10History === undefined)
-    )
+    const lacksB = b.active && (!bCache || (
+      (hasB25 && (!bCache.pm25History || bCache.pm25History.length === 0)) ||
+      (hasB10 && (!bCache.pm10History || bCache.pm10History.length === 0))
+    ))
 
     if (lacksA && !lacksB) return -1
     if (!lacksA && lacksB) return 1
@@ -262,12 +262,12 @@ export async function fetchLocationsServer(): Promise<Station[]> {
     const stationCache = freshCache.stations[station.id]
     if (!stationCache) return true
 
-    // Si tiene sensores PM2.5 o PM10 pero sus campos de historial en caché son undefined,
+    // Si tiene sensores PM2.5 o PM10 pero sus campos de historial en caché son undefined o vacíos,
     // forzamos la actualización para precargar los datos de 24 horas.
     const hasPm25Sensor = Object.values(station.sensorMap).includes('pm25')
     const hasPm10Sensor = Object.values(station.sensorMap).includes('pm10')
-    const lacksPm25History = hasPm25Sensor && stationCache.pm25History === undefined
-    const lacksPm10History = hasPm10Sensor && stationCache.pm10History === undefined
+    const lacksPm25History = hasPm25Sensor && (!stationCache.pm25History || stationCache.pm25History.length === 0)
+    const lacksPm10History = hasPm10Sensor && (!stationCache.pm10History || stationCache.pm10History.length === 0)
 
     if (lacksPm25History || lacksPm10History) {
       return true
@@ -367,16 +367,16 @@ export async function fetchLocationsServer(): Promise<Station[]> {
 
           const dateFrom = new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString()
 
-          if (pm10History.length < 12 && pm10SensorId) {
+          if (pm10History.length < 24 && pm10SensorId) {
             try {
               console.log(`[openaq] Inicializando historial PM10 para sensor ${pm10SensorId} de ${station.nombre}...`)
               const histData = await fetchWithTimeout(
-                `${OPENAQ_BASE}/sensors/${pm10SensorId}/measurements?datetime_from=${encodeURIComponent(dateFrom)}&limit=100`
+                `${OPENAQ_BASE}/sensors/${pm10SensorId}/measurements?period_name=hour&limit=24`
               )
               const histResults = Array.isArray(histData.results) ? histData.results : []
               const hourMap = new Map<string, number>()
               for (const r of histResults) {
-                const timeStr = r.period?.datetimeTo?.utc || r.period?.datetimeFrom?.utc
+                const timeStr = r.period?.datetimeTo?.utc || r.period?.datetimeFrom?.utc || r.datetime?.utc
                 if (timeStr && typeof r.value === 'number') {
                   hourMap.set(timeStr, r.value)
                 }
@@ -389,16 +389,16 @@ export async function fetchLocationsServer(): Promise<Station[]> {
             }
           }
 
-          if (pm25History.length < 12 && pm25SensorId) {
+          if (pm25History.length < 24 && pm25SensorId) {
             try {
               console.log(`[openaq] Inicializando historial PM2.5 para sensor ${pm25SensorId} de ${station.nombre}...`)
               const histData = await fetchWithTimeout(
-                `${OPENAQ_BASE}/sensors/${pm25SensorId}/measurements?datetime_from=${encodeURIComponent(dateFrom)}&limit=100`
+                `${OPENAQ_BASE}/sensors/${pm25SensorId}/measurements?period_name=hour&limit=24`
               )
               const histResults = Array.isArray(histData.results) ? histData.results : []
               const hourMap = new Map<string, number>()
               for (const r of histResults) {
-                const timeStr = r.period?.datetimeTo?.utc || r.period?.datetimeFrom?.utc
+                const timeStr = r.period?.datetimeTo?.utc || r.period?.datetimeFrom?.utc || r.datetime?.utc
                 if (timeStr && typeof r.value === 'number') {
                   hourMap.set(timeStr, r.value)
                 }
