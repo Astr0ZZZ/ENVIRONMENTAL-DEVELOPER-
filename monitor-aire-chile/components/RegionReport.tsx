@@ -620,9 +620,9 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                         }}>
                                             <p style={{ fontSize: 9, margin: 0, color: '#4a453c', lineHeight: 1.5 }}>
                                                 <strong style={{ color: ICA_COLORS[gecLevel] }}>⚠️ Alerta Técnica ICA — {gecLevel} (estimación sensor):</strong>{' '}
-                                                {gecLevel === 'Emergencia' && 'Situación de extremo riesgo para la salud pública. PM2.5 ≥ 170 µg/m³ o PM10 ≥ 330 µg/m³. Estimación técnica — no equivale a declaración oficial de GEC.'}
-                                                {gecLevel === 'Preemergencia' && 'Nivel de contaminación severa. PM2.5 entre 110–169 µg/m³ o PM10 entre 240–329 µg/m³. Estimación técnica — no equivale a declaración oficial de GEC.'}
-                                                {gecLevel === 'Alerta' && 'Nivel inicial de resguardo preventivo. PM2.5 entre 80–109 µg/m³ o PM10 entre 195–239 µg/m³. Estimación técnica — no equivale a declaración oficial de GEC.'}
+                                                {gecLevel === 'Emergencia' && 'Situación de extremo riesgo para la salud pública. (Umbral sensor ICA: PM2.5 > 45 µg/m³ o PM10 > 200 µg/m³; umbral GEC oficial: PM2.5 ≥ 170 µg/m³ o PM10 ≥ 330 µg/m³). Estimación técnica — no equivale a declaración oficial de GEC.'}
+                                                {gecLevel === 'Preemergencia' && 'Nivel de contaminación severa. (Umbral sensor ICA: PM2.5 36-45 µg/m³ o PM10 151-200 µg/m³; umbral GEC oficial: PM2.5 110-169 µg/m³ o PM10 240-329 µg/m³). Estimación técnica — no equivale a declaración oficial de GEC.'}
+                                                {gecLevel === 'Alerta' && 'Nivel inicial de resguardo preventivo. (Umbral sensor ICA: PM2.5 26-35 µg/m³ o PM10 101-150 µg/m³; umbral GEC oficial: PM2.5 80-109 µg/m³ o PM10 195-239 µg/m³). Estimación técnica — no equivale a declaración oficial de GEC.'}
                                             </p>
                                         </div>
                                     )}
