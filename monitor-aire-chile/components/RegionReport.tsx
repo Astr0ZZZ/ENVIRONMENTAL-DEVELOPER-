@@ -130,6 +130,48 @@ function getRegionGECLevel(stns: Station[]): string | null {
     return worst
 }
 
+function getRegionSpecificRestrictions(region: string, level: string): string | null {
+    if (level === 'Normal' || level === 'Bueno' || level === 'Regular') return null;
+
+    if (region === 'Región Metropolitana') {
+        if (level === 'Alerta') {
+            return 'Prohibición de calefactores a leña (salvo pellet certificado). Restricción vehicular de 2 dígitos (sello verde inscritos antes de sep-2011). Prohibición permanente de quemas agrícolas.';
+        }
+        if (level === 'Preemergencia') {
+            return 'Prohibición absoluta de calefactores a biomasa (incluye pellet). Restricción vehicular de 2 dígitos para transporte de carga y catalíticos. Paralización de grandes fuentes industriales no conformes.';
+        }
+        if (level === 'Emergencia') {
+            return 'Prohibición absoluta de calefactores a biomasa. Restricción vehicular extrema: 4 dígitos para catalíticos y 100% de no catalíticos. Paralización industrial obligatoria de grandes establecimientos SMA.';
+        }
+    }
+
+    if (region === 'Región de la Araucanía') {
+        if (level === 'Alerta') {
+            return 'Prohibición del uso de chimeneas de hogar abierto en Temuco y Padre Las Casas.';
+        }
+        if (level === 'Preemergencia') {
+            return 'Restricción de uso de calefactores a leña residenciales dentro del polígono delimitado habitacional de Temuco y Padre Las Casas.';
+        }
+        if (level === 'Emergencia') {
+            return 'Prohibición absoluta de encender cocinas, estufas o calderas a leña residenciales en la totalidad de Temuco y Padre Las Casas de 18:00 a 06:00 horas.';
+        }
+    }
+
+    if (region === "Región de O'Higgins") {
+        if (level === 'Alerta') {
+            return 'Prohibición de chimeneas de hogar abierto en zona saturada. Prohibición de uso de leña en dependencias públicas y comerciales.';
+        }
+        if (level === 'Preemergencia') {
+            return 'Prohibición de uso de calderas residenciales a leña (salvo pellet certificado SEC). Restricción a fuentes industriales sin planes de reducción.';
+        }
+        if (level === 'Emergencia') {
+            return 'Prohibición absoluta de calefactores residenciales a leña no certificados en el Valle Central. Paralización total de grandes fuentes industriales no conformes.';
+        }
+    }
+
+    return null;
+}
+
 function computeRegionStats(stns: Station[]) {
     const withData = stns.filter(hasAnyData)
 
@@ -539,6 +581,11 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                                                 {gecLevel === 'Preemergencia' && 'Nivel de contaminación severa. Basado en superación de umbrales oficiales de promedio móvil de 24 horas (PM2.5 110-169 µg/m³ o PM10 240-329 µg/m³).'}
                                                 {gecLevel === 'Alerta' && 'Nivel inicial de resguardo preventivo. Basado en superación de umbrales oficiales de promedio móvil de 24 horas (PM2.5 80-109 µg/m³ o PM10 195-239 µg/m³).'}
                                             </p>
+                                            {getRegionSpecificRestrictions(selectedRegion, gecLevel) && (
+                                                <p style={{ fontSize: 9, margin: '6px 0 0 0', color: '#2d2a24', lineHeight: 1.5, borderTop: '1px solid #d4cebe', paddingTop: 6 }}>
+                                                    <strong>🚫 Restricciones Específicas de la Zona:</strong> {getRegionSpecificRestrictions(selectedRegion, gecLevel)}
+                                                </p>
+                                            )}
                                         </div>
                                     )}
                                 </div>
