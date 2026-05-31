@@ -208,6 +208,7 @@ export function RegionTable({ stations, activePollutant, onSelectStation, search
         <div className="flex items-center gap-2">
           {!isMinimized && (
             <button
+              id="toggle-expand-all-btn"
               type="button"
               onClick={toggleAll}
               className="flex items-center gap-1.5 rounded-lg border border-[#b5ae9b]/60 dark:border-slate-700/50 bg-white/60 dark:bg-slate-900/50 px-3 py-1.5 text-xs font-bold text-[#4a453c] dark:text-slate-300 transition-all hover:bg-[#e4dec9]/50 dark:hover:bg-slate-800/60 hover:text-[#2d2a24] dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"

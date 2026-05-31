@@ -120,8 +120,13 @@ export function Dashboard({ stations }: DashboardProps) {
       content: 'Compara los datos agrupados por regiones. Puedes expandir y ver las estaciones de una región haciendo clic en su fila.',
     },
     {
+      targetId: 'toggle-expand-all-btn',
+      title: '📂 Desplegar o Contraer Todas',
+      content: 'Utiliza este botón para abrir o cerrar simultáneamente todas las regiones de la tabla y ver el detalle de todas sus estaciones a la vez.',
+    },
+    {
       targetId: 'toggle-minimize-table-btn',
-      title: '↕️ Minimizar o Maximizar',
+      title: '↕️ Minimizar o Maximizar Tabla',
       content: 'Haz clic en este botón para ocultar o volver a mostrar la tabla completa en cualquier momento y liberar espacio visual.',
     },
   ], [])
