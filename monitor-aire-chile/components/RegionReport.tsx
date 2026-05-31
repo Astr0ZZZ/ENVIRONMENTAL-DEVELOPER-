@@ -439,18 +439,18 @@ export function RegionReport({ stations, onClose }: RegionReportProps) {
                     const catLabel = worstCat?.categoria ?? 'Sin datos'
                     
                     const gases: string[] = []
-                    if (s.so2 !== null && s.so2 >= 0) gases.push(`SO₂: ${Math.round(s.so2)}`)
-                    if (s.no2 !== null && s.no2 >= 0) gases.push(`NO₂: ${Math.round(s.no2)}`)
-                    if (s.o3 !== null && s.o3 >= 0) gases.push(`O₃: ${Math.round(s.o3)}`)
-                    if (s.co !== null && s.co >= 0) gases.push(`CO: ${(s.co / 1000).toFixed(1)}`)
+                    if (typeof s.so2 === 'number' && s.so2 >= 0) gases.push(`SO₂: ${Math.round(s.so2)}`)
+                    if (typeof s.no2 === 'number' && s.no2 >= 0) gases.push(`NO₂: ${Math.round(s.no2)}`)
+                    if (typeof s.o3 === 'number' && s.o3 >= 0) gases.push(`O₃: ${Math.round(s.o3)}`)
+                    if (typeof s.co === 'number' && s.co >= 0) gases.push(`CO: ${(s.co / 1000).toFixed(1)}`)
                     const gasesStr = gases.length > 0 ? gases.join(', ') : '—'
 
                     return {
                         station: s.nombre,
                         locality: s.locality,
                         catLabel,
-                        pm25: s.pm25 !== null ? `${Math.round(s.pm25)} µg/m³` : '—',
-                        pm10: s.pm10 !== null ? `${Math.round(s.pm10)} µg/m³` : '—',
+                        pm25: typeof s.pm25 === 'number' ? `${Math.round(s.pm25)} µg/m³` : '—',
+                        pm10: typeof s.pm10 === 'number' ? `${Math.round(s.pm10)} µg/m³` : '—',
                         gasesStr
                     }
                 }).sort((a, b) => {
